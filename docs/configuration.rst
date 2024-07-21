@@ -591,7 +591,7 @@ extractor.*.user-agent
 Type
     ``string``
 Default
-    ``"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0"``
+    ``"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"``
 Description
     User-Agent header value to be used for HTTP requests.
 
@@ -4577,13 +4577,17 @@ Description
 extractor.[booru].url
 ---------------------
 Type
-    ``string``
+    * ``string``
+    * ``list`` of ``strings``
 Default
     ``"file_url"``
 Example
-    ``"preview_url"``
+    * ``"preview_url"``
+    * ``["sample_url", "preview_url", "file_url"}``
 Description
     Alternate field name to retrieve download URLs from.
+
+    When multiple names are given, download the first available one.
 
 
 extractor.[manga-extractor].chapter-reverse
@@ -6083,6 +6087,18 @@ Description
 
     Set this option to ``null`` or an invalid path to disable
     this cache.
+
+
+filters-environment
+-------------------
+Type
+    ``bool``
+Default
+    ``true``
+Description
+    Evaluate filter expressions raising an exception as ``false``
+    instead of aborting the current extractor run
+    by wrapping them in a `try`/`except` block.
 
 
 format-separator

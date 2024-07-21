@@ -378,7 +378,7 @@ class Extractor():
             useragent = self.config("user-agent")
             if useragent is None:
                 useragent = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64; "
-                             "rv:109.0) Gecko/20100101 Firefox/115.0")
+                             "rv:128.0) Gecko/20100101 Firefox/128.0")
             elif useragent == "browser":
                 useragent = _browser_useragent()
             headers["User-Agent"] = useragent
@@ -390,6 +390,8 @@ class Extractor():
             headers["Accept-Encoding"] = "gzip, deflate, br"
         else:
             headers["Accept-Encoding"] = "gzip, deflate"
+        if ZSTD:
+            headers["Accept-Encoding"] += ", zstd"
 
         referer = self.config("referer", self.referer)
         if referer:
@@ -789,10 +791,11 @@ class BaseExtractor(Extractor):
     instances = ()
 
     def __init__(self, match):
-        Extractor.__init__(self, match)
         if not self.category:
+            self.groups = match.groups()
+            self.match = match
             self._init_category()
-            self._cfgpath = ("extractor", self.category, self.subcategory)
+        Extractor.__init__(self, match)
 
     def _init_category(self):
         for index, group in enumerate(self.groups):
@@ -911,13 +914,12 @@ _browser_cookies = {}
 HTTP_HEADERS = {
     "firefox": (
         ("User-Agent", "Mozilla/5.0 ({}; "
-                       "rv:109.0) Gecko/20100101 Firefox/115.0"),
+                       "rv:128.0) Gecko/20100101 Firefox/128.0"),
         ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,"
-                   "image/avif,image/webp,*/*;q=0.8"),
+                   "image/avif,image/webp,image/png,image/svg+xml,*/*;q=0.8"),
         ("Accept-Language", "en-US,en;q=0.5"),
         ("Accept-Encoding", None),
         ("Referer", None),
-        ("DNT", "1"),
         ("Connection", "keep-alive"),
         ("Upgrade-Insecure-Requests", "1"),
         ("Cookie", None),
@@ -990,6 +992,12 @@ try:
     BROTLI = urllib3.response.brotli is not None
 except AttributeError:
     BROTLI = False
+
+# detect zstandard support
+try:
+    ZSTD = urllib3.response.HAS_ZSTD
+except AttributeError:
+    ZSTD = False
 
 # set (urllib3) warnings filter
 action = config.get((), "warnings", "default")
