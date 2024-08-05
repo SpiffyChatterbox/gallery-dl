@@ -2,11 +2,13 @@
 
 """ Extractors for Girls with Muscle - www.girlswithmuscle.com """
 
-from .common import Extractor, Message
+from .common import Extractor, Message, GalleryExtractor
 from .. import text
 
 
 BASE_PATTERN = (r"(?:https?://)(?:www\.)?girlswithmuscle\.(?:com)")
+
+
 
 
 class _GirlsWithMuscleExtractor(Extractor):
@@ -32,6 +34,9 @@ class _GirlsWithMuscleExtractor(Extractor):
         data["filename"] = filename
         user_id = self.user_id
         data["user_id"] = user_id
+        
+        self.log.debug(f"Sending request to Message with {data}")
+        
         yield Message.Directory, data
         yield Message.Url, imageURL, data
 
