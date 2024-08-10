@@ -8,6 +8,7 @@ import re
 
 BASE_PATTERN = r"(?:https?://)(?:www\.)?girlswithmuscle\.(?:com)"
 
+# TODO: get a testfile up and running
 
 class GirlsWithMuscleGalleryExtractor(GalleryExtractor):
     """Extractor for GWM albums"""
@@ -77,3 +78,11 @@ class _GirlsWithMuscleExtractor(Extractor):
 
         yield Message.Directory, data
         yield Message.Url, imageURL, data
+
+
+# TODO: Forum threads (https://www.girlswithmuscle.com/forum/)
+# TODO: Other "categories" like
+#   pinned (hidden gems) (https://www.girlswithmuscle.com/images/?show_only=pinned&order=pinned)
+#   high scores (https://www.girlswithmuscle.com/images/?order=scoreday)
+#   tags (Is this even queryable?)
+#   users (https://www.girlswithmuscle.com/users/userlist/?sort=total_score_received)
