@@ -4,41 +4,51 @@
 
 from .common import Extractor, Message, GalleryExtractor
 from .. import text
+import re
 
-
-BASE_PATTERN = (r"(?:https?://)(?:www\.)?girlswithmuscle\.(?:com)")
+BASE_PATTERN = r"(?:https?://)(?:www\.)?girlswithmuscle\.(?:com)"
 
 
 class GirlsWithMuscleGalleryExtractor(GalleryExtractor):
-    """Extractor for catbox albums"""
+    """Extractor for GWM albums"""
     category = "gwm"
-    subcategory = "album"
-    pattern = BASE_PATTERN + r"/images/\?name=[\w\s%]*"
-    filename_fmt = "{filename}.{extension}" # Not sure if this is used?
-    directory_fmt = ("{category}", "{album_name} ({album_id})") # Not sure if this is used?
-    archive_fmt = "{album_id}_{filename}" # Not sure if this is used?
+    pattern = BASE_PATTERN + r"/images/\?name=([^&#]+)*"
+    filename_fmt = "{filename}.{extension}"
+    directory_fmt = ("{category}", "{gallery_id}")
 
+    def __init__(self, match):
+        self.root = text.root_from_url(match.group(0))
+        self.girls_name = match.group(1)
+        self.foldername = self.girls_name.replace('%20', '_')
+        url = "https://www.girlswithmuscle.com/images/?name=" + self.girls_name
+        GalleryExtractor.__init__(self, match, url)
 
     def metadata(self, page):
         extr = text.extract_from(page)
-        self.log.debug(f"Collecting Metadata with {extr}")
-        return {
-            "album_id"    : self.gallery_url.rpartition("/")[2],
-            "album_name" : text.unescape(extr('<h1 id="name-header">', '<')),
-            "date"       : text.parse_datetime(extr(
-                "<p>Created ", "<"), "%B %d %Y"),
-            "description": text.unescape(extr("<p>", "<")),            
-        }
-
+        return {"gallery_id": self.foldername}
+        # TODO: Maybe collect Tags here?
 
     def images(self, page):
-        self.log.debug(f"Implementing Image request with {page}")
-        return [
-            (f"https://www.girlswithmuscle.com/images/{imageid}/", None)    
-            for imageid in text.extract_iter(
-                    page, '<img class="thumbnail" src="https://www.girlswithmuscle.com/images/thumbs/', '.jpg')
-        ]
+        urllist = []
 
+        url_pattern = re.compile(r"<img class='thumbnail' src='https://www\.girlswithmuscle\.com/images/thumbs/(\d{1,20}).jpg(\?\d)?\b")
+
+        for match in url_pattern.finditer(page):
+            imageid = match.group(1)
+            videocheck = match.group(2)
+            if videocheck:
+                urllist.append("https://www.girlswithmuscle.com/images/full/" + imageid + ".mp4")
+            else:
+                urllist.append("https://www.girlswithmuscle.com/images/full/" + imageid + ".jpg")
+        self.log.debug(f"Implementing Image request with {urllist}")
+        return [
+            (image, None)
+            for image in urllist
+        ]
+        ## TODO: Occasionally finds a .png and that fails because I assume .jpg
+        ## TODO: Occasionally the site lists a video as an image and it fails because we ask for the wrong file extension
+            # Example: https://www.girlswithmuscle.com/images/?name=Claudia Elizabeth (cdzfit) links to https://www.girlswithmuscle.com/images/thumbs/2276507.jpg, but at view-source:https://www.girlswithmuscle.com/2276507/ we find an mp4.
+        ## TODO: Currently only pulls down the first page. How do we iterate through pages?
 
 class _GirlsWithMuscleExtractor(Extractor):
     """Extractor for GirlsWithMuscle Images"""
@@ -51,7 +61,6 @@ class _GirlsWithMuscleExtractor(Extractor):
         Extractor.__init__(self, match)
         self.user_id = str(match.group(1))
 
-
     def items(self):
         host = text.root_from_url(self.url)
         imageURL = host + "/images/full/" + self.user_id + ".jpg"
@@ -63,9 +72,8 @@ class _GirlsWithMuscleExtractor(Extractor):
         data["filename"] = filename
         user_id = self.user_id
         data["user_id"] = user_id
-        
+
         self.log.debug(f"Sending request to Message with {data}")
-        
+
         yield Message.Directory, data
         yield Message.Url, imageURL, data
-
