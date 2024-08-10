@@ -10,6 +10,7 @@ BASE_PATTERN = r"(?:https?://)(?:www\.)?girlswithmuscle\.(?:com)"
 
 # TODO: get a testfile up and running
 
+
 class GirlsWithMuscleGalleryExtractor(GalleryExtractor):
     """Extractor for GWM albums"""
     category = "gwm"
@@ -31,9 +32,7 @@ class GirlsWithMuscleGalleryExtractor(GalleryExtractor):
 
     def images(self, page):
         urllist = []
-
         url_pattern = re.compile(r"<img class='thumbnail' src='https://www\.girlswithmuscle\.com/images/thumbs/(\d{1,20}).jpg(\?\d)?\b")
-
         for match in url_pattern.finditer(page):
             imageid = match.group(1)
             videocheck = match.group(2)
@@ -50,6 +49,7 @@ class GirlsWithMuscleGalleryExtractor(GalleryExtractor):
         ## TODO: Occasionally the site lists a video as an image and it fails because we ask for the wrong file extension
             # Example: https://www.girlswithmuscle.com/images/?name=Claudia Elizabeth (cdzfit) links to https://www.girlswithmuscle.com/images/thumbs/2276507.jpg, but at view-source:https://www.girlswithmuscle.com/2276507/ we find an mp4.
         ## TODO: Currently only pulls down the first page. How do we iterate through pages?
+
 
 class _GirlsWithMuscleExtractor(Extractor):
     """Extractor for GirlsWithMuscle Images"""
