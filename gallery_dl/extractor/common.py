@@ -28,6 +28,22 @@ urllib3 = requests.packages.urllib3
 
 class Extractor():
 
+    """Information Extractor class.
+
+    Information extractors are the classes that, given a URL, extract
+    information about the image, video, or file the URL refers to. This
+    information includes the real document URL, the video title, author and
+    others. The information is stored in a dictionary which is then
+    passed to gallery-dl. gallery-dl processes this information to download
+    the file to the file system. 
+
+    The type field determines the type of the result.
+    By far the most common value (and the default if _type is missing) is
+    "video", which indicates a single video.
+    
+
+    """
+    
     category = ""
     subcategory = ""
     basecategory = ""
