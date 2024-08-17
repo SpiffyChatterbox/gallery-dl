@@ -26,7 +26,7 @@ class GirlsWithMuscleGalleryExtractor(GalleryExtractor):
         GalleryExtractor.__init__(self, match, url)
 
     def metadata(self, page):
-        extr = text.extract_from(page)
+        extr = text.extract_from(page) # extraneous?
         return {"gallery_id": self.foldername}
         # TODO: Maybe collect Tags here?
 
@@ -36,8 +36,8 @@ class GirlsWithMuscleGalleryExtractor(GalleryExtractor):
         for match in url_pattern.finditer(page):
             imageid = match.group(1)
             videocheck = match.group(2)
-            if videocheck:
-                urllist.append("https://www.girlswithmuscle.com/images/full/" + imageid + ".mp4")
+            if videocheck: # Need to change these from an assumption to get the actual URL from the page. 
+                urllist.append("https://www.girlswithmuscle.com/images/full/" + imageid + ".mp4") 
             else:
                 urllist.append("https://www.girlswithmuscle.com/images/full/" + imageid + ".jpg")
         self.log.debug(f"Implementing Image request with {urllist}")
