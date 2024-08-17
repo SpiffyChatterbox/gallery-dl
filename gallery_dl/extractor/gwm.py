@@ -20,7 +20,7 @@ class GirlsWithMuscleGalleryExtractor(GalleryExtractor):
 
     def __init__(self, match):
         self.root = text.root_from_url(match.group(0))
-        self.girls_name = match.group(1)
+        self.girls_name = match.group(1)  # This could probably move to Extractor Class and text.nameext_from_url()
         self.foldername = self.girls_name.replace('%20', '_')
         url = "https://www.girlswithmuscle.com/images/?name=" + self.girls_name
         GalleryExtractor.__init__(self, match, url)
