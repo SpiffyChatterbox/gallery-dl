@@ -13,7 +13,6 @@ from .. import text, util, exception
 from ..cache import cache, memcache
 import itertools
 import random
-import json
 import re
 
 BASE_PATTERN = (r"(?:https?://)?(?:www\.|mobile\.)?"
@@ -122,14 +121,7 @@ class TwitterExtractor(Extractor):
                 txt = data.get("full_text") or data.get("text") or ""
                 self.log.warning("'%s' (%s)", txt, data["id_str"])
 
-            files = []
-            if "extended_entities" in data:
-                self._extract_media(
-                    data, data["extended_entities"]["media"], files)
-            if "card" in tweet and self.cards:
-                self._extract_card(tweet, files)
-            if self.twitpic:
-                self._extract_twitpic(data, files)
+            files = self._extract_files(data, tweet)
             if not files and not self.textonly:
                 continue
 
@@ -144,6 +136,39 @@ class TwitterExtractor(Extractor):
                     text.nameext_from_url(url, file)
                 yield Message.Url, url, file
 
+    def _extract_files(self, data, tweet):
+        files = []
+
+        if "extended_entities" in data:
+            try:
+                self._extract_media(
+                    data, data["extended_entities"]["media"], files)
+            except Exception as exc:
+                self.log.debug("", exc_info=exc)
+                self.log.warning(
+                    "%s: Error while extracting media files (%s: %s)",
+                    data["id_str"], exc.__class__.__name__, exc)
+
+        if self.cards and "card" in tweet:
+            try:
+                self._extract_card(tweet, files)
+            except Exception as exc:
+                self.log.debug("", exc_info=exc)
+                self.log.warning(
+                    "%s: Error while extracting Card files (%s: %s)",
+                    data["id_str"], exc.__class__.__name__, exc)
+
+        if self.twitpic:
+            try:
+                self._extract_twitpic(data, files)
+            except Exception as exc:
+                self.log.debug("", exc_info=exc)
+                self.log.warning(
+                    "%s: Error while extracting TwitPic files (%s: %s)",
+                    data["id_str"], exc.__class__.__name__, exc)
+
+        return files
+
     def _extract_media(self, tweet, entities, files):
         for media in entities:
 
@@ -155,6 +180,7 @@ class TwitterExtractor(Extractor):
                     if not self.unavailable:
                         continue
 
+            mtype = media.get("type")
             descr = media.get("ext_alt_text")
             width = media["original_info"].get("width", 0)
             height = media["original_info"].get("height", 0)
@@ -164,6 +190,7 @@ class TwitterExtractor(Extractor):
                     files.append({
                         "url": "ytdl:{}/i/web/status/{}".format(
                             self.root, tweet["id_str"]),
+                        "type"       : mtype,
                         "width"      : width,
                         "height"     : height,
                         "extension"  : None,
@@ -177,6 +204,7 @@ class TwitterExtractor(Extractor):
                     )
                     files.append({
                         "url"        : variant["url"],
+                        "type"       : mtype,
                         "width"      : width,
                         "height"     : height,
                         "bitrate"    : variant.get("bitrate", 0),
@@ -193,6 +221,7 @@ class TwitterExtractor(Extractor):
                     base = url.rpartition("=")[0] + "="
                 files.append(text.nameext_from_url(url, {
                     "url"        : base + self._size_image,
+                    "type"       : mtype,
                     "width"      : width,
                     "height"     : height,
                     "_fallback"  : self._image_fallback(base),
@@ -302,6 +331,7 @@ class TwitterExtractor(Extractor):
                     legacy["created_at"], "%a %b %d %H:%M:%S %z %Y")
             except Exception:
                 date = util.NONE
+        source = tweet.get("source")
 
         tdata = {
             "tweet_id"      : tweet_id,
@@ -317,7 +347,7 @@ class TwitterExtractor(Extractor):
             "author"        : author,
             "user"          : self._user or author,
             "lang"          : legacy["lang"],
-            "source"        : text.extr(tweet["source"], ">", "<"),
+            "source"        : text.extr(source, ">", "<") if source else "",
             "sensitive"     : tget("possibly_sensitive"),
             "favorite_count": tget("favorite_count"),
             "quote_count"   : tget("quote_count"),
@@ -504,7 +534,11 @@ class TwitterExtractor(Extractor):
         }
 
     def _init_cursor(self):
-        return self.config("cursor") or None
+        cursor = self.config("cursor", True)
+        if not cursor:
+            self._update_cursor = util.identity
+        elif isinstance(cursor, str):
+            return cursor
 
     def _update_cursor(self, cursor):
         self.log.debug("Cursor: %s", cursor)
@@ -531,12 +565,6 @@ class TwitterExtractor(Extractor):
         if username:
             return self.cookies_update(_login_impl(self, username, password))
 
-        for cookie in self.cookies:
-            if cookie.domain == ".twitter.com":
-                self.cookies.set(
-                    cookie.name, cookie.value, domain=self.cookies_domain,
-                    expires=cookie.expires, secure=cookie.secure)
-
 
 class TwitterUserExtractor(TwitterExtractor):
     """Extractor for a Twitter user"""
@@ -560,6 +588,7 @@ class TwitterUserExtractor(TwitterExtractor):
     def items(self):
         base = "{}/{}/".format(self.root, self.user)
         return self._dispatch_extractors((
+            (TwitterInfoExtractor      , base + "info"),
             (TwitterAvatarExtractor    , base + "photo"),
             (TwitterBackgroundExtractor, base + "header_photo"),
             (TwitterTimelineExtractor  , base + "timeline"),
@@ -590,8 +619,15 @@ class TwitterTimelineExtractor(TwitterExtractor):
         return cursor
 
     def tweets(self):
-        self._cursor = cursor = self.config("cursor") or None
         reset = False
+
+        cursor = self.config("cursor", True)
+        if not cursor:
+            self._update_cursor = util.identity
+        elif isinstance(cursor, str):
+            self._cursor = cursor
+        else:
+            cursor = None
 
         if cursor:
             state = cursor.partition("/")[0]
@@ -1018,7 +1054,7 @@ class TwitterAPI():
 
         self.root = "https://x.com/i/api"
         self._nsfw_warning = True
-        self._json_dumps = json.JSONEncoder(separators=(",", ":")).encode
+        self._json_dumps = util.json_dumps
 
         cookies = extractor.cookies
         cookies_domain = extractor.cookies_domain
@@ -1612,6 +1648,9 @@ class TwitterAPI():
                             entries = instr["entries"]
                     elif instr_type == "TimelineAddToModule":
                         entries = instr["moduleItems"]
+                    elif instr_type == "TimelinePinEntry":
+                        if pinned_tweet:
+                            pinned_tweet = instr["entry"]
                     elif instr_type == "TimelineReplaceEntry":
                         entry = instr["entry"]
                         if entry["entryId"].startswith("cursor-bottom-"):
@@ -1650,9 +1689,11 @@ class TwitterAPI():
             tweet = None
 
             if pinned_tweet:
-                pinned_tweet = False
-                if instructions[-1]["type"] == "TimelinePinEntry":
+                if isinstance(pinned_tweet, dict):
+                    tweets.append(pinned_tweet)
+                elif instructions[-1]["type"] == "TimelinePinEntry":
                     tweets.append(instructions[-1]["entry"])
+                pinned_tweet = False
 
             for entry in entries:
                 esw = entry["entryId"].startswith

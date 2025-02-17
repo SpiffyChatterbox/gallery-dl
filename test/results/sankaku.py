@@ -106,6 +106,14 @@ __tests__ = (
 },
 
 {
+    "#url"     : "https://www.sankakucomplex.com/books/8YEa7EERmD0",
+    "#comment" : "alphanumeric book/pool ID (#6757)",
+    "#category": ("booru", "sankaku", "pool"),
+    "#class"   : sankaku.SankakuPoolExtractor,
+    "#count"   : 5,
+},
+
+{
     "#url"     : "https://www.sankakucomplex.com/books/90",
     "#category": ("booru", "sankaku", "pool"),
     "#class"   : sankaku.SankakuPoolExtractor,
@@ -142,7 +150,7 @@ __tests__ = (
     "#sha1_content": "5e255713cbf0a8e0801dc423563c34d896bb9229",
 
     "id": "y0abGlDOr2o",
-    "notes": [],
+    "notes": (),
     "tags_artist": [
         "bonocho",
     ],
@@ -219,6 +227,12 @@ __tests__ = (
     "tags_general": [
         "key(mangaka)",
         "key(mangaka)",
+        "english_language",
+        "english_language",
+        "high_resolution",
+        "tagme",
+        "very_high_resolution",
+        "large_filesize",
     ],
 },
 
