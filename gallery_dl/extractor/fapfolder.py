@@ -13,11 +13,15 @@ from .. import text, exception
 BASE_PATTERN = r"(?:https?://)?(?:www\.)?fapfolder\.club"
 
 
-class FapfolderPhotoExtractor(Extractor):
-    """Extractor for individual photos on fapfolder.club"""
+class FapfolderExtractor(Extractor):
+    """Base class for fapfolder extractors"""
     category = "fapfolder"
-    subcategory = "photo"
     root = "https://fapfolder.club"
+
+
+class FapfolderPhotoExtractor(FapfolderExtractor):
+    """Extractor for individual photos on fapfolder.club"""
+    subcategory = "photo"
     directory_fmt = ("{category}", "{group}")
     filename_fmt = "{group}_{id}.{extension}"
     archive_fmt = "photo_{group}_{id}"
@@ -25,7 +29,7 @@ class FapfolderPhotoExtractor(Extractor):
     example = "https://fapfolder.club/photos/123456"
 
     def __init__(self, match):
-        Extractor.__init__(self, match)
+        FapfolderExtractor.__init__(self, match)
         self.photo_id = match.group(1)
 
     def items(self):
@@ -51,16 +55,14 @@ class FapfolderPhotoExtractor(Extractor):
         yield Message.Url, image_url, text.nameext_from_url(image_url, data)
 
 
-class FapfolderGroupExtractor(Extractor):
+class FapfolderGroupExtractor(FapfolderExtractor):
     """Extractor for all photos from a fapfolder group/performer"""
-    category = "fapfolder"
     subcategory = "group"
-    root = "https://fapfolder.club"
     pattern = BASE_PATTERN + r"/groups/([^/?#]+)(?:/photos)?/?$"
     example = "https://fapfolder.club/groups/performer"
 
     def __init__(self, match):
-        Extractor.__init__(self, match)
+        FapfolderExtractor.__init__(self, match)
         self.group = match.group(1)
 
     def items(self):
@@ -80,16 +82,14 @@ class FapfolderGroupExtractor(Extractor):
                     "_extractor": FapfolderPhotoExtractor}
 
 
-class FapfolderUserExtractor(Extractor):
+class FapfolderUserExtractor(FapfolderExtractor):
     """Extractor for all photos uploaded by a user"""
-    category = "fapfolder"
     subcategory = "user"
-    root = "https://fapfolder.club"
     pattern = BASE_PATTERN + r"/([^/?#]+)/?$"
     example = "https://fapfolder.club/username"
 
     def __init__(self, match):
-        Extractor.__init__(self, match)
+        FapfolderExtractor.__init__(self, match)
         self.username = match.group(1)
 
     def items(self):
