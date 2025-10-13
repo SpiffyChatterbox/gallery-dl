@@ -62,6 +62,7 @@ modules = [
     "fansly",
     "fantia",
     "fapello",
+    "fapfolder",
     "fapachi",
     "flickr",
     "furaffinity",
