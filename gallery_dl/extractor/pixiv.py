@@ -149,7 +149,7 @@ class PixivExtractor(Extractor):
                             self._extract_ajax(work, body)
                             return self._extract_ugoira(work, url)
                         except Exception as exc:
-                            self.log.debug("", exc_info=exc)
+                            self.log.traceback(exc)
                             self.log.warning(
                                 "%s: Unable to extract Ugoira URL. Provide "
                                 "logged-in cookies to access it", work["id"])
@@ -273,6 +273,9 @@ class PixivExtractor(Extractor):
             "name"       : body["userName"],
             "profile_image_urls": {},
         }
+
+        if "is_bookmarked" not in work:
+            work["is_bookmarked"] = True if body.get("bookmarkData") else False
 
         work["tags"] = tags = []
         for tag in body["tags"]["tags"]:
@@ -450,7 +453,7 @@ class PixivArtworksExtractor(PixivExtractor):
                 ajax_ids.extend(map(int, body["manga"]))
                 ajax_ids.sort()
             except Exception as exc:
-                self.log.debug("", exc_info=exc)
+                self.log.traceback(exc)
                 self.log.warning("u%s: Failed to collect artwork IDs "
                                  "using AJAX API", self.user_id)
             else:

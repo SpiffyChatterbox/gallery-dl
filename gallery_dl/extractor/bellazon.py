@@ -47,7 +47,7 @@ class BellazonExtractor(Extractor):
             post["count"] = data["count"] = len(urls)
 
             yield Message.Directory, data
-            data["num"] = 0
+            data["num"] = data["num_internal"] = data["num_external"] = 0
             for info, url, url_img in urls:
                 url = text.unescape(url or url_img)
 
@@ -59,6 +59,7 @@ class BellazonExtractor(Extractor):
                     ):
                         continue
                     data["num"] += 1
+                    data["num_internal"] += 1
                     if not (alt := text.extr(info, ' alt="', '"')) or (
                             alt.startswith("post-") and "_thumb." in alt):
                         name = url
@@ -80,6 +81,8 @@ class BellazonExtractor(Extractor):
                     yield Message.Url, url, dc
 
                 else:
+                    data["num"] += 1
+                    data["num_external"] += 1
                     yield Message.Queue, url, data
 
     def _pagination(self, base, pnum=None):
@@ -130,7 +133,7 @@ class BellazonExtractor(Extractor):
         author = schema["author"]
         stats = schema["interactionStatistic"]
         url_t = schema["url"]
-        url_a = author["url"]
+        url_a = author.get("url") or ""
 
         path = text.split_html(text.extr(
             page, '<nav class="ipsBreadcrumb', "</nav>"))[2:-1]
@@ -151,8 +154,12 @@ class BellazonExtractor(Extractor):
 
         thread["id"], _, thread["slug"] = \
             url_t.rsplit("/", 2)[1].partition("-")
-        thread["author_id"], _, thread["author_slug"] = \
-            url_a.rsplit("/", 2)[1].partition("-")
+
+        if url_a:
+            thread["author_id"], _, thread["author_slug"] = \
+                url_a.rsplit("/", 2)[1].partition("-")
+        else:
+            thread["author_id"] = thread["author_slug"] = ""
 
         return thread
 
@@ -169,8 +176,11 @@ class BellazonExtractor(Extractor):
         if (pos := post["content"].find(">")) >= 0:
             post["content"] = post["content"][pos+1:].strip()
 
-        post["author_id"], _, post["author_slug"] = \
-            post["author_url"].rsplit("/", 2)[1].partition("-")
+        if url_a := post["author_url"]:
+            post["author_id"], _, post["author_slug"] = \
+                url_a.rsplit("/", 2)[1].partition("-")
+        else:
+            post["author_id"] = post["author_slug"] = ""
 
         return post
 

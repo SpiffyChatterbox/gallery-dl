@@ -146,7 +146,7 @@ class TwitterExtractor(Extractor):
                 self._extract_media(
                     data, data["extended_entities"]["media"], files)
             except Exception as exc:
-                self.log.debug("", exc_info=exc)
+                self.log.traceback(exc)
                 self.log.warning(
                     "%s: Error while extracting media files (%s: %s)",
                     data["id_str"], exc.__class__.__name__, exc)
@@ -155,7 +155,7 @@ class TwitterExtractor(Extractor):
             try:
                 self._extract_card(tweet, files)
             except Exception as exc:
-                self.log.debug("", exc_info=exc)
+                self.log.traceback(exc)
                 self.log.warning(
                     "%s: Error while extracting Card files (%s: %s)",
                     data["id_str"], exc.__class__.__name__, exc)
@@ -164,7 +164,7 @@ class TwitterExtractor(Extractor):
             try:
                 self._extract_twitpic(data, files)
             except Exception as exc:
-                self.log.debug("", exc_info=exc)
+                self.log.traceback(exc)
                 self.log.warning(
                     "%s: Error while extracting TwitPic files (%s: %s)",
                     data["id_str"], exc.__class__.__name__, exc)
@@ -528,13 +528,13 @@ class TwitterExtractor(Extractor):
             "id"              : text.parse_int(uid),
             "name"            : core.get("screen_name"),
             "nick"            : core.get("name"),
-            "location"        : user["location"]["location"],
+            "location"        : user["location"].get("location"),
             "date"            : text.parse_datetime(
                 core["created_at"], "%a %b %d %H:%M:%S %z %Y"),
             "verified"        : user["verification"]["verified"],
             "protected"       : user["privacy"]["protected"],
             "profile_banner"  : lget("profile_banner_url", ""),
-            "profile_image"   : user["avatar"]["image_url"].replace(
+            "profile_image"   : user["avatar"].get("image_url", "").replace(
                 "_normal.", "."),
             "favourites_count": lget("favourites_count"),
             "followers_count" : lget("followers_count"),

@@ -587,6 +587,7 @@ Description
     * ``sankaku``
     * ``scrolller``
     * ``seiga``
+    * ``simpcity``
     * ``subscribestar``
     * ``tapas``
     * ``tsumino``
@@ -1134,15 +1135,16 @@ Type
 Default
     ``"file"``
 Example
-    * ``"file,skip"``
-    * ``["file", "skip"]``
+    * ``"after,skip"``
+    * ``["after", "skip"]``
 Description
     `Event(s) <metadata.event_>`__
     for which IDs get written to an
     `archive <extractor.*.archive_>`__.
-
-    Available events are:
-    ``file``, ``skip``
+Available Events
+    * ``file``
+    * ``after``
+    * ``skip``
 
 
 extractor.*.archive-format
@@ -2094,6 +2096,45 @@ Description
       ``R``, ``X``, and ``XXX`` rated images,
       while ``3`` (``1|2``) would return only
       ``None`` and ``Soft`` rated images,
+
+
+extractor.civitai.period
+------------------------
+Type
+    ``string``
+Default
+    ``"AllTime"``
+Description
+    Sets the ``period`` parameter
+    when paginating over results.
+Supported Values
+    * ``"AllTime"``
+    * ``"Year"``
+    * ``"Month"``
+    * ``"Week"``
+    * ``"Day"``
+
+
+extractor.civitai.sort
+----------------------
+Type
+    ``string``
+Default
+    ``"Newest"``
+Description
+    Sets the ``sort`` parameter
+    when paginating over results.
+Supported Values
+    * ``"Newest"``
+    * ``"Oldest"``
+    * ``"Most Reactions"``
+    * ``"Most Comments"``
+    * ``"Most Collected"``
+Special Values
+    ``"asc"``
+        Ascending order (``"Oldest"``)
+    ``"desc"`` | ``"reverse"``
+        Descending order (``"Newest"``)
 
 
 extractor.civitai.quality
