@@ -143,6 +143,7 @@ modules = [
     "nitter",
     "nozomi",
     "nsfwalbum",
+    "nudogram",
     "nudostar",
     "okporn",
     "paheal",
