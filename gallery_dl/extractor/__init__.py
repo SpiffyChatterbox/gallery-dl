@@ -67,6 +67,7 @@ modules = [
     "fantia",
     "fapello",
     "fapachi",
+    "feetplaza",
     "flickr",
     "furaffinity",
     "furry34",
