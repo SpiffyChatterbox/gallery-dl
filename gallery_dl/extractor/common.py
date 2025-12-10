@@ -932,6 +932,88 @@ class Dispatch():
         return iter(results)
 
 
+class FlareSolverrMixin():
+    """Mixin for extractors that need FlareSolverr bypass for Cloudflare.
+
+    To use, inherit from this mixin before Extractor:
+        class MyExtractor(FlareSolverrMixin, Extractor):
+            ...
+
+    Configure via:
+        "extractor": {
+            "mysite": {
+                "flaresolverr": "http://localhost:8191"
+            }
+        }
+    """
+
+    def _init(self):
+        self.flaresolverr = self.config("flaresolverr")
+        if hasattr(super(), "_init"):
+            super()._init()
+
+    def request(self, url, **kwargs):
+        if self.flaresolverr:
+            return self._flaresolverr_request(url, **kwargs)
+        return super().request(url, **kwargs)
+
+    def _flaresolverr_request(self, url, method="GET", **kwargs):
+        """Make request through FlareSolverr."""
+        cmd = "request.post" if method.upper() == "POST" else "request.get"
+
+        payload = {
+            "cmd": cmd,
+            "url": url,
+            "maxTimeout": 60000,
+        }
+
+        # Add POST data if present
+        if "data" in kwargs:
+            payload["postData"] = kwargs["data"]
+
+        # Make request to FlareSolverr
+        response = Extractor.request(
+            self,
+            f"{self.flaresolverr}/v1",
+            method="POST",
+            json=payload,
+        )
+
+        data = response.json()
+
+        if data.get("status") != "ok":
+            msg = data.get("message", "Unknown error")
+            raise exception.HttpError(f"FlareSolverr: {msg}")
+
+        solution = data["solution"]
+
+        # Update session cookies from FlareSolverr response
+        for cookie in solution.get("cookies", []):
+            self.cookies.set(
+                cookie["name"],
+                cookie["value"],
+                domain=cookie.get("domain", ""),
+                path=cookie.get("path", "/"),
+            )
+
+        # Return a response-like object
+        return FlareSolverrResponse(solution)
+
+
+class FlareSolverrResponse():
+    """Response object wrapping FlareSolverr solution data."""
+
+    def __init__(self, solution):
+        self.text = solution.get("response", "")
+        self.content = self.text.encode("utf-8")
+        self.status_code = solution.get("status", 200)
+        self.url = solution.get("url", "")
+        self.headers = solution.get("headers", {})
+
+    def json(self):
+        return util.json_loads(self.text)
+
+
 class AsynchronousMixin():
     """Run info extraction in a separate thread"""
 
