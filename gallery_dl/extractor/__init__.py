@@ -149,6 +149,7 @@ modules = [
     "nsfwalbum",
     "nudostar",
     "okporn",
+    "onlybestgals",
     "paheal",
     "patreon",
     "pexels",
