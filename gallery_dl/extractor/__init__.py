@@ -67,6 +67,7 @@ modules = [
     "fansly",
     "fantia",
     "fapello",
+    "fapfolder",
     "fapachi",
     "fikfap",
     "fitnakedgirls",
