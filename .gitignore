@@ -68,3 +68,6 @@ target/
 /*.snap
 /*_source.tar.bz2
 /gallery-dl
+
+# Database files
+*.sqlite
