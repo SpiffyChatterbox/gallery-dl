@@ -17,6 +17,9 @@ class NudostarExtractor(GalleryExtractor):
     category = "nudostar"
     root = "https://nudostar.tv"
 
+    def _init(self):
+        self.session.headers["Referer"] = self.root + "/"
+
 
 class NudostarModelExtractor(NudostarExtractor):
     """Extractor for NudoStar models"""
