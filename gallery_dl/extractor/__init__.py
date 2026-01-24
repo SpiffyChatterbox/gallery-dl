@@ -148,6 +148,7 @@ modules = [
     "nozomi",
     "nsfwalbum",
     "nudostar",
+    "nudogram",
     "okporn",
     "paheal",
     "patreon",
