@@ -33,6 +33,7 @@ modules = [
     "audiochan",
     "bbc",
     "behance",
+    "bestthots",
     "bellazon",
     "bilibili",
     "blogger",

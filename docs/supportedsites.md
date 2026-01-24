@@ -145,6 +145,12 @@ Consider all listed sites to potentially be NSFW.
     <td>Forums, Posts, Threads</td>
     <td></td>
 </tr>
+<tr id="bestthots" title="bestthots">
+    <td>Bestthots</td>
+    <td>https://bestthots.com/</td>
+    <td>Models, Posts</td>
+    <td></td>
+</tr>
 <tr id="bilibili" title="bilibili">
     <td>Bilibili</td>
     <td>https://www.bilibili.com/</td>
@@ -341,6 +347,18 @@ Consider all listed sites to potentially be NSFW.
     <td>Fapello</td>
     <td>https://fapello.com/</td>
     <td>Models, Videos, Trending Posts, Popular Videos, Top Models, Posts</td>
+    <td></td>
+</tr>
+<tr id="fapfolder" title="fapfolder">
+    <td>Fapfolder</td>
+    <td>https://fapfolder.club/</td>
+    <td>Groups, Photos, User Profiles</td>
+    <td></td>
+</tr>
+<tr id="feetplaza" title="feetplaza">
+    <td>Feetplaza</td>
+    <td>https://www.feetplaza.com/</td>
+    <td>Categories, Models, Posts</td>
     <td></td>
 </tr>
 <tr id="fikfap" title="fikfap">
@@ -757,6 +775,12 @@ Consider all listed sites to potentially be NSFW.
     <td>Albums</td>
     <td></td>
 </tr>
+<tr id="nudogram" title="nudogram">
+    <td>Nudogram</td>
+    <td>https://nudogram.com/</td>
+    <td>individual Images, Models</td>
+    <td></td>
+</tr>
 <tr id="nudostar" title="nudostar">
     <td>NudoStar.TV</td>
     <td>https://nudostar.tv/</td>
@@ -767,6 +791,12 @@ Consider all listed sites to potentially be NSFW.
     <td>OK.PORN</td>
     <td>https://ok.porn/</td>
     <td>Galleries</td>
+    <td></td>
+</tr>
+<tr id="onlybestgals" title="onlybestgals">
+    <td>Onlybestgals</td>
+    <td>https://www.onlybestgals.com/</td>
+    <td>Categories, Models</td>
     <td></td>
 </tr>
 <tr id="patreon" title="patreon">
@@ -869,6 +899,12 @@ Consider all listed sites to potentially be NSFW.
     <td>Poringa</td>
     <td>http://www.poringa.net/</td>
     <td>Posts Images, Search Results, User Profiles</td>
+    <td></td>
+</tr>
+<tr id="porn7" title="porn7">
+    <td>Porn7</td>
+    <td>https://porn7.net/</td>
+    <td>Categories, Posts, Search Results</td>
     <td></td>
 </tr>
 <tr id="pornhub" title="pornhub">
@@ -1099,6 +1135,12 @@ Consider all listed sites to potentially be NSFW.
     <td>Galleries</td>
     <td></td>
 </tr>
+<tr id="topfapgirlspics" title="topfapgirlspics">
+    <td>Topfapgirlspics</td>
+    <td>https://www.topfapgirlspics.com/</td>
+    <td>Categories, Models, Photos</td>
+    <td></td>
+</tr>
 <tr id="toyhouse" title="toyhouse">
     <td>Toyhouse</td>
     <td>https://toyhou.se/</td>
@@ -1289,6 +1331,12 @@ Consider all listed sites to potentially be NSFW.
     <td>Yiff verse</td>
     <td>https://yiffverse.com/</td>
     <td>Playlists, Posts, Tag Searches</td>
+    <td></td>
+</tr>
+<tr id="youpic" title="youpic">
+    <td>Youpic</td>
+    <td>https://youpic.com/</td>
+    <td>individual Images, Inspirations, Newests, User Profiles</td>
     <td></td>
 </tr>
 <tr id="yourlesbians" title="yourlesbians">
