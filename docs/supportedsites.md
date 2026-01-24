@@ -343,6 +343,12 @@ Consider all listed sites to potentially be NSFW.
     <td>Models, Videos, Trending Posts, Popular Videos, Top Models, Posts</td>
     <td></td>
 </tr>
+<tr id="feetplaza" title="feetplaza">
+    <td>Feetplaza</td>
+    <td>https://www.feetplaza.com/</td>
+    <td>Categories, Models, Posts</td>
+    <td></td>
+</tr>
 <tr id="fikfap" title="fikfap">
     <td>FikFap</td>
     <td>https://fikfap.com/</td>
