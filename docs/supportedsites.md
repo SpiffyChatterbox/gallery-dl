@@ -1261,6 +1261,12 @@ Consider all listed sites to potentially be NSFW.
     <td>Playlists, Posts, Tag Searches</td>
     <td></td>
 </tr>
+<tr id="youpic" title="youpic">
+    <td>Youpic</td>
+    <td>https://youpic.com/</td>
+    <td>individual Images, Inspirations, Newests, User Profiles</td>
+    <td></td>
+</tr>
 <tr id="zerochan" title="zerochan">
     <td>Zerochan</td>
     <td>https://www.zerochan.net/</td>
