@@ -763,6 +763,12 @@ Consider all listed sites to potentially be NSFW.
     <td>Galleries</td>
     <td></td>
 </tr>
+<tr id="onlybestgals" title="onlybestgals">
+    <td>Onlybestgals</td>
+    <td>https://www.onlybestgals.com/</td>
+    <td>Categories, Models</td>
+    <td></td>
+</tr>
 <tr id="patreon" title="patreon">
     <td>Patreon</td>
     <td>https://www.patreon.com/</td>
