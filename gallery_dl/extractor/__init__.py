@@ -150,6 +150,7 @@ modules = [
     "nozomi",
     "nsfwalbum",
     "nudostar",
+    "nudogram",
     "okporn",
     "onlybestgals",
     "paheal",
