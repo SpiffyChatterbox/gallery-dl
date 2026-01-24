@@ -53,21 +53,21 @@ build-linux() {
     cd "${ROOTDIR}"
     echo Building Linux executable
 
-    build-vm 'ubuntu22.04' 'gallery-dl.bin' 'gallery-dl.bin' 'linux' 25000000
+    build-vm 'ubuntu22.04' 'gallery-dl.bin' 'gallery-dl.bin' 'linux' 24000000
 }
 
 build-windows() {
     cd "${ROOTDIR}"
     echo Building Windows executable
 
-    build-vm 'win10' 'gallery-dl.exe' 'gallery-dl.exe' 'windows' 22000000
+    build-vm 'win10' 'gallery-dl.exe' 'gallery-dl.exe' 'windows' 21000000
 }
 
 build-windows_x86() {
     cd "${ROOTDIR}"
     echo Building Windows X86 executable
 
-    build-vm 'windows7_x86_sp1' 'gallery-dl_x86.exe' 'gallery-dl.exe' 'windows_x86' 13400000
+    build-vm 'windows7_x86_sp1' 'gallery-dl_x86.exe' 'gallery-dl.exe' 'windows_x86' 13000000
 }
 
 build-vm() {
@@ -150,15 +150,29 @@ changelog() {
     > "${CHANGELOG}"
 }
 
-supportedsites() {
+prepare() {
     cd "${ROOTDIR}"
-    echo Checking if "${SUPPORTEDSITES}" is up to date
 
+    echo Checking if "${SUPPORTEDSITES}" is up to date
     ./scripts/supportedsites.py
-    if ! git diff --quiet "${SUPPORTEDSITES}"; then
+    if ! git diff --quiet -- "${SUPPORTEDSITES}"; then
         echo "updated ${SUPPORTEDSITES} contains changes"
         exit 4
     fi
+
+    echo Checking changed files
+    DIFF="$(git diff --name-only)"
+    if [[ "$DIFF" != "${CHANGELOG}" ]]; then
+        if [[ "$DIFF" != *"${CHANGELOG}"* ]]; then
+            echo "Missing ${NEWVERSION} '${CHANGELOG}' entries"
+        else
+            printf "Uncommited changes to files other than '${CHANGELOG}':\n%s\n" "$DIFF"
+        fi
+        exit 4
+    fi
+
+    echo Syncing local branch with origin/master
+    git pull --autostash
 }
 
 upload-git() {
@@ -202,7 +216,7 @@ fi
 
 
 prompt
-supportedsites
+prepare
 cleanup
 update
 changelog

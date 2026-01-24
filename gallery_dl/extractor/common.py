@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2014-2025 Mike Fährmann
+# Copyright 2014-2026 Mike Fährmann
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -39,8 +39,10 @@ class Extractor():
     archive_fmt = ""
     status = 0
     root = ""
-    cookies_domain = ""
+    cookies_file = ""
     cookies_index = 0
+    cookies_domain = ""
+    session = None
     referer = True
     ciphers = None
     tls12 = True
@@ -85,8 +87,15 @@ class Extractor():
 
     def initialize(self):
         self._init_options()
-        self._init_session()
-        self._init_cookies()
+
+        if self.session is None:
+            self._init_session()
+            self.cookies = self.session.cookies
+            if self.cookies_domain is not None:
+                self._init_cookies()
+        else:
+            self.cookies = self.session.cookies
+
         self._init()
         self.initialize = util.noop
 
@@ -216,7 +225,9 @@ class Extractor():
                     if encoding:
                         response.encoding = encoding
                     return response
-                if notfound and code == 404:
+                if notfound is not None and code == 404:
+                    if notfound is True:
+                        notfound = self.__class__.subcategory
                     self.status |= exception.NotFoundError.code
                     raise exception.NotFoundError(notfound)
 
@@ -475,6 +486,19 @@ class Extractor():
             headers["User-Agent"] = _browser_useragent(None)
         elif custom_ua[0] == "@":
             headers["User-Agent"] = _browser_useragent(custom_ua[1:])
+        elif custom_ua[0] == "+":
+            custom_ua = custom_ua[1:].lower()
+            if custom_ua in {"firefox", "ff"}:
+                headers["User-Agent"] = util.USERAGENT_FIREFOX
+            elif custom_ua in {"chrome", "cr"}:
+                headers["User-Agent"] = util.USERAGENT_CHROME
+            elif custom_ua in {"gallery-dl", "gallerydl", "gdl"}:
+                headers["User-Agent"] = util.USERAGENT_GALLERYDL
+            elif custom_ua in {"google-bot", "googlebot", "bot"}:
+                headers["User-Agent"] = "Googlebot-Image/1.0"
+            else:
+                self.log.warning(
+                    "Unsupported User-Agent preset '%s'", custom_ua)
         elif self.useragent is Extractor.useragent and not self.browser or \
                 custom_ua is not config.get(("extractor",), "user-agent"):
             headers["User-Agent"] = custom_ua
@@ -526,11 +550,6 @@ class Extractor():
 
     def _init_cookies(self):
         """Populate the session's cookiejar"""
-        self.cookies = self.session.cookies
-        self.cookies_file = None
-        if self.cookies_domain is None:
-            return
-
         if cookies := self.config("cookies"):
             if select := self.config("cookies-select"):
                 if select == "rotate":
@@ -766,7 +785,7 @@ class GalleryExtractor(Extractor):
         Extractor.__init__(self, match)
 
         if url is None and (path := self.groups[0]) and path[0] == "/":
-            self.page_url = f"{self.root}{path}"
+            self.page_url = self.root + path
         else:
             self.page_url = url
 
@@ -863,7 +882,7 @@ class MangaExtractor(Extractor):
         Extractor.__init__(self, match)
 
         if url is None and (path := self.groups[0]) and path[0] == "/":
-            self.page_url = f"{self.root}{path}"
+            self.page_url = self.root + path
         else:
             self.page_url = url
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright 2021-2025 Mike Fährmann
+# Copyright 2021-2026 Mike Fährmann
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -188,6 +188,27 @@ class TestFormatter(unittest.TestCase):
         self._run_test("{d['a']}", "foo")
         self._run_test('{d["a"]}', "foo")
 
+    def test_dot_index(self):
+        self._run_test("{l.1}"  , "b")
+        self._run_test("{a.6}"  , "w")
+        self._run_test("{a.99}" , "None")
+        self._run_test("{l.-1}" , "c")
+        self._run_test("{a.-7}" , "o")
+        self._run_test("{a.-0}" , "h")  # same as a[0]
+        self._run_test("{a.-99}", "None")
+
+    def test_dot_access_dict(self):
+        self._run_test("{d.a}", "foo")
+        self._run_test("{d.d}", "None")
+        self._run_test("{a.d}", "None")
+        self._run_test("{L.0.age}", "42")
+        self._run_test("{L.-1.name.2}", "x")
+        self._run_test("{L.1:I}", self.kwdict["L"][1])
+
+    def test_dot_access_attr(self):
+        self._run_test("{t.real}", "1262304000")
+        self._run_test("{dt.year}", "2010")
+
     def test_slice_str(self):
         v = self.kwdict["a"]
         self._run_test("{a[1:10]}"  , v[1:10])
@@ -368,6 +389,15 @@ class TestFormatter(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             self._run_test("{t:Mname", "")
+
+    def test_specifier_identity(self):
+        self._run_test("{a:I}", self.kwdict["a"])
+        self._run_test("{i:I}", self.kwdict["i"])
+        self._run_test("{dt:I}", self.kwdict["dt"])
+
+        self._run_test("{t!D:I}", self.kwdict["dt"])
+        self._run_test("{t!D:I/O+01:30}", self.kwdict["dt"])
+        self._run_test("{i:A+1/I}", self.kwdict["i"]+1)
 
     def test_chain_special(self):
         # multiple replacements

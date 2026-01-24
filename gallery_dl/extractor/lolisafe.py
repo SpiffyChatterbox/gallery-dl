@@ -25,7 +25,7 @@ BASE_PATTERN = LolisafeExtractor.update({
 
 class LolisafeAlbumExtractor(LolisafeExtractor):
     subcategory = "album"
-    pattern = rf"{BASE_PATTERN}/a/([^/?#]+)"
+    pattern = BASE_PATTERN + "/a/([^/?#]+)"
     example = "https://xbunkr.com/a/ID"
 
     def __init__(self, match):
@@ -60,10 +60,11 @@ class LolisafeAlbumExtractor(LolisafeExtractor):
                     file["filename"] = file["name"]
                 else:
                     file["id"] = fid
-                    file["filename"] = file["name"] + "-" + fid
+                    file["filename"] = f"{file['name']}-{fid}"
             elif "id" in file:
                 file["name"] = file["filename"]
-                file["filename"] = f"{file['name']}-{file['id']}"
+                if file["filename"] != file["id"]:
+                    file["filename"] = f"{file['name']}-{file['id']}"
             else:
                 file["name"], sep, file["id"] = \
                     file["filename"].rpartition("-")

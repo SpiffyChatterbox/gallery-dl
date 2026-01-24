@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2023-2025 Mike Fährmann
+# Copyright 2023-2026 Mike Fährmann
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -24,6 +24,10 @@ class CheveretoExtractor(BaseExtractor):
 
     def _pagination(self, url, callback=None):
         page = self.request(url).text
+
+        if form := text.extr(page, "<form ", "</form"):
+            page = self._password_submit(url, form) or page
+
         if callback is not None:
             callback(page)
 
@@ -36,9 +40,45 @@ class CheveretoExtractor(BaseExtractor):
             url = text.extr(page, 'data-pagination="next" href="', '"')
             if not url:
                 return
+            url = text.unescape(url).replace("+", " ")
             if url[0] == "/":
                 url = self.root + url
             page = self.request(url).text
+
+    def _password_submit(self, url, form):
+        sources = getattr(self, "_password_sources", None)
+        if sources is None:
+            sources = self._password_sources = []
+            if pw := getattr(self, "_password_last", None):
+                sources.append(pw)
+            if pw := self.config("password"):
+                if isinstance(pw, str):
+                    pw = pw.split(",")
+                sources.extend(pw)
+            sources.reverse()
+        sources = sources.copy()
+
+        page = None
+        tried = set()
+        while True:
+            pw = sources.pop() if sources else self.input("Password: ")
+            if not pw:
+                break
+            if pw in tried:
+                continue
+            self.log.debug("Submitting password '%s'", pw)
+            data = {
+                "auth_token": text.unescape(text.extr(
+                    form, 'name="auth_token" value="', '"')),
+                "content-password": pw,
+            }
+            page = self.request(url, method="POST", data=data).text
+            form = text.extr(page, "<form ", "</form")
+            if not form:
+                CheveretoExtractor._password_last = pw
+                break
+            tried.add(pw)
+        return page
 
 
 BASE_PATTERN = CheveretoExtractor.update({
@@ -60,7 +100,7 @@ BASE_PATTERN = CheveretoExtractor.update({
 class CheveretoImageExtractor(CheveretoExtractor):
     """Extractor for chevereto images"""
     subcategory = "image"
-    pattern = rf"{BASE_PATTERN}(/im(?:g|age)/[^/?#]+)"
+    pattern = BASE_PATTERN + r"(/im(?:g|age)/[^/?#]+)"
     example = "https://jpg7.cr/img/TITLE.ID"
 
     def items(self):
@@ -98,7 +138,7 @@ class CheveretoImageExtractor(CheveretoExtractor):
 class CheveretoVideoExtractor(CheveretoExtractor):
     """Extractor for chevereto videos"""
     subcategory = "video"
-    pattern = rf"{BASE_PATTERN}(/video/[^/?#]+)"
+    pattern = BASE_PATTERN + r"(/video/[^/?#]+)"
     example = "https://imagepond.net/video/TITLE.ID"
 
     def items(self):
@@ -145,7 +185,7 @@ class CheveretoVideoExtractor(CheveretoExtractor):
 class CheveretoAlbumExtractor(CheveretoExtractor):
     """Extractor for chevereto albums"""
     subcategory = "album"
-    pattern = rf"{BASE_PATTERN}(/a(?:lbum)?/[^/?#]+(?:/sub)?)"
+    pattern = BASE_PATTERN + r"(/a(?:lbum)?/[^/?#]+(?:/sub)?)"
     example = "https://jpg7.cr/album/TITLE.ID"
 
     def items(self):
@@ -182,7 +222,7 @@ class CheveretoAlbumExtractor(CheveretoExtractor):
 class CheveretoCategoryExtractor(CheveretoExtractor):
     """Extractor for chevereto galleries"""
     subcategory = "category"
-    pattern = rf"{BASE_PATTERN}(/category/[^/?#]+)"
+    pattern = BASE_PATTERN + r"(/category/[^/?#]+)"
     example = "https://imglike.com/category/TITLE"
 
     def items(self):
@@ -194,19 +234,15 @@ class CheveretoCategoryExtractor(CheveretoExtractor):
 class CheveretoUserExtractor(CheveretoExtractor):
     """Extractor for chevereto users"""
     subcategory = "user"
-    pattern = rf"{BASE_PATTERN}(/[^/?#]+(?:/albums)?)"
+    pattern = BASE_PATTERN + r"(/[^/?#]+(?:/albums)?)"
     example = "https://jpg7.cr/USER"
 
     def items(self):
-        url = self.root + self.path
-
-        if self.path.endswith("/albums"):
-            data = {"_extractor": CheveretoAlbumExtractor}
-            for url in self._pagination(url):
-                yield Message.Queue, url, data
-        else:
-            data_image = {"_extractor": CheveretoImageExtractor}
-            data_video = {"_extractor": CheveretoVideoExtractor}
-            for url in self._pagination(url):
-                data = data_video if "/video/" in url else data_image
-                yield Message.Queue, url, data
+        data_image = {"_extractor": CheveretoImageExtractor}
+        data_video = {"_extractor": CheveretoVideoExtractor}
+        data_album = {"_extractor": CheveretoAlbumExtractor}
+        for url in self._pagination(self.root + self.path):
+            data = (data_album if "/album/" in url else
+                    data_video if "/video/" in url else
+                    data_image)
+            yield Message.Queue, url, data

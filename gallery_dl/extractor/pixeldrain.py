@@ -24,12 +24,22 @@ class PixeldrainExtractor(Extractor):
         if api_key := self.config("api-key"):
             self.session.auth = util.HTTPBasicAuth("", api_key)
 
+    def _available(self, file):
+        if not file.get("availability"):
+            return True
+
+        self.status |= 1
+        self.log.debug(file["availability"])
+        self.log.warning(
+            "%s: '%s'", file["name"], file["availability_message"])
+        return False
+
 
 class PixeldrainFileExtractor(PixeldrainExtractor):
     """Extractor for pixeldrain files"""
     subcategory = "file"
     filename_fmt = "{filename[:230]} ({id}).{extension}"
-    pattern = rf"{BASE_PATTERN}/(?:u|api/file)/(\w+)"
+    pattern = BASE_PATTERN + r"/(?:u|api/file)/(\w+)"
     example = "https://pixeldrain.com/u/abcdefgh"
 
     def __init__(self, match):
@@ -43,9 +53,14 @@ class PixeldrainFileExtractor(PixeldrainExtractor):
         file["url"] = url + "?download"
         file["date"] = self.parse_datetime_iso(file["date_upload"])
 
-        text.nameext_from_url(file["name"], file)
+        text.nameext_from_name(file["name"], file)
         yield Message.Directory, "", file
-        yield Message.Url, file["url"], file
+        if file.get("availability"):
+            self.status |= 1
+            self.log.debug(file["availability"])
+            self.log.error("'%s'", file["availability_message"])
+        else:
+            yield Message.Url, file["url"], file
 
 
 class PixeldrainAlbumExtractor(PixeldrainExtractor):
@@ -54,7 +69,7 @@ class PixeldrainAlbumExtractor(PixeldrainExtractor):
     directory_fmt = ("{category}",
                      "{album[date]:%Y-%m-%d} {album[title]} ({album[id]})")
     filename_fmt = "{num:>03} {filename[:230]} ({id}).{extension}"
-    pattern = rf"{BASE_PATTERN}/(?:l|api/list)/(\w+)(?:#item=(\d+))?"
+    pattern = BASE_PATTERN + r"/(?:l|api/list)/(\w+)(?:#item=(\d+))?"
     example = "https://pixeldrain.com/l/abcdefgh"
 
     def __init__(self, match):
@@ -65,11 +80,33 @@ class PixeldrainAlbumExtractor(PixeldrainExtractor):
     def items(self):
         url = f"{self.root}/api/list/{self.album_id}"
         album = self.request_json(url)
-
-        files = album["files"]
-        album["count"] = album["file_count"]
         album["date"] = self.parse_datetime_iso(album["date_created"])
 
+        if self.config("zip", False):
+            self.directory_fmt = ("{category}",)
+            self.filename_fmt = "{filename[:230]} ({id}).{extension}"
+            del album["files"]
+            album["count"] = 1
+            url += "/zip"
+
+            file = {
+                "id"   : album["id"],
+                "url"  : url,
+                "num"  : 0,
+                "count": 1,
+                "name" : album["title"] + ".zip",
+                "date" : album["date"],
+                "album": album,
+                "filename" : album["title"],
+                "extension": "zip",
+            }
+
+            yield Message.Directory, "", file
+            yield Message.Url, url, file
+            return
+
+        files = album.pop("files")
+        album["count"] = album.pop("file_count")
         if self.file_index:
             idx = text.parse_int(self.file_index)
             try:
@@ -79,16 +116,15 @@ class PixeldrainAlbumExtractor(PixeldrainExtractor):
         else:
             idx = 0
 
-        del album["files"]
-        del album["file_count"]
-
         yield Message.Directory, "", {"album": album}
         for num, file in enumerate(files, idx+1):
+            if not self._available(file):
+                continue
             file["album"] = album
             file["num"] = num
             file["url"] = url = f"{self.root}/api/file/{file['id']}?download"
             file["date"] = self.parse_datetime_iso(file["date_upload"])
-            text.nameext_from_url(file["name"], file)
+            text.nameext_from_name(file["name"], file)
             yield Message.Url, url, file
 
 
@@ -97,7 +133,7 @@ class PixeldrainFolderExtractor(PixeldrainExtractor):
     subcategory = "folder"
     filename_fmt = "{filename[:230]}.{extension}"
     archive_fmt = "{path}_{num}"
-    pattern = rf"{BASE_PATTERN}/(?:d|api/filesystem)/([^?]+)"
+    pattern = BASE_PATTERN + r"/(?:d|api/filesystem)/([^?]+)"
     example = "https://pixeldrain.com/d/abcdefgh"
 
     def metadata(self, data):
@@ -137,6 +173,8 @@ class PixeldrainFolderExtractor(PixeldrainExtractor):
         for child in children:
             if child["type"] == "file":
                 num += 1
+                if not self._available(child):
+                    continue
                 url = f"{self.root}/api/filesystem{child['path']}?attach"
                 share_url = f"{self.root}/d{child['path']}"
                 data = self.metadata(child)

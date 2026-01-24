@@ -48,13 +48,13 @@ class CienArticleExtractor(CienExtractor):
     filename_fmt = "{num:>02} {filename}.{extension}"
     directory_fmt = ("{category}", "{author[name]}", "{post_id} {name}")
     archive_fmt = "{post_id}_{num}"
-    pattern = rf"{BASE_PATTERN}/creator/(\d+)/article/(\d+)"
+    pattern = BASE_PATTERN + r"/creator/(\d+)/article/(\d+)"
     example = "https://ci-en.net/creator/123/article/12345"
 
     def items(self):
         author_id, post_id = self.groups
         url = f"{self.root}/creator/{author_id}/article/{post_id}"
-        page = self.request(url, notfound="article").text
+        page = self.request(url, notfound=True).text
 
         files = self._extract_files(page)
         post = self._extract_jsonld(page)[0]
@@ -160,7 +160,7 @@ class CienArticleExtractor(CienExtractor):
 
 class CienCreatorExtractor(CienExtractor):
     subcategory = "creator"
-    pattern = rf"{BASE_PATTERN}/creator/(\d+)(?:/article(?:\?([^#]+))?)?/?$"
+    pattern = BASE_PATTERN + r"/creator/(\d+)(?:/article(?:\?([^#]+))?)?/?$"
     example = "https://ci-en.net/creator/123"
 
     def items(self):
@@ -172,7 +172,7 @@ class CienCreatorExtractor(CienExtractor):
 
 class CienRecentExtractor(CienExtractor):
     subcategory = "recent"
-    pattern = rf"{BASE_PATTERN}/mypage/recent(?:\?([^#]+))?"
+    pattern = BASE_PATTERN + r"/mypage/recent(?:\?([^#]+))?"
     example = "https://ci-en.net/mypage/recent"
 
     def items(self):
@@ -183,7 +183,7 @@ class CienRecentExtractor(CienExtractor):
 
 class CienFollowingExtractor(CienExtractor):
     subcategory = "following"
-    pattern = rf"{BASE_PATTERN}/mypage/subscription(/following)?"
+    pattern = BASE_PATTERN + r"/mypage/subscription(/following)?"
     example = "https://ci-en.net/mypage/subscription"
 
     def items(self):

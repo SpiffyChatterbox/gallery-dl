@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2016-2025 Mike Fährmann
+# Copyright 2016-2026 Mike Fährmann
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -11,7 +11,6 @@
 from .common import Extractor, Message
 from .. import text, exception
 from ..cache import memcache
-from os.path import splitext
 
 
 class ImagehostImageExtractor(Extractor):
@@ -20,7 +19,6 @@ class ImagehostImageExtractor(Extractor):
     subcategory = "image"
     archive_fmt = "{token}"
     parent = True
-    _https = True
     _params = None
     _cookies = None
     _encoding = None
@@ -28,10 +26,7 @@ class ImagehostImageExtractor(Extractor):
 
     def __init__(self, match):
         Extractor.__init__(self, match)
-        if self.root:
-            self.page_url = f"{self.root}{match[1]}"
-        else:
-            self.page_url = f"http{'s' if self._https else ''}://{match[1]}"
+        self.page_url = (self.root or "https://") + match[1]
         self.token = match[2]
 
         if self._params == "simple":
@@ -70,7 +65,7 @@ class ImagehostImageExtractor(Extractor):
         data["post_url"] = self.page_url
         data.update(self.metadata(page))
 
-        if self._https and url.startswith("http:"):
+        if url.startswith("http:"):
             url = "https:" + url[5:]
         if self._validate is not None:
             data["_http_validate"] = self._validate
@@ -102,9 +97,6 @@ class ImxtoImageExtractor(ImagehostImageExtractor):
         ImagehostImageExtractor.__init__(self, match)
         if "/img-" in self.page_url:
             self.page_url = self.page_url.replace("img.yt", "imx.to")
-            self.url_ext = True
-        else:
-            self.url_ext = False
 
     def get_info(self, page):
         url, pos = text.extract(
@@ -112,9 +104,7 @@ class ImxtoImageExtractor(ImagehostImageExtractor):
         if not url:
             self.not_found()
         filename, pos = text.extract(page, ' title="', '"', pos)
-        if self.url_ext and filename:
-            filename += splitext(url)[1]
-        return url, filename or url
+        return url, filename or None
 
     def metadata(self, page):
         extr = text.extract_from(page, page.index("[ FILESIZE <"))
@@ -176,7 +166,7 @@ class AcidimgImageExtractor(ImagehostImageExtractor):
         if not filename:
             filename, pos = text.extract(page, 'alt="', '"', pos)
 
-        return url, (filename + splitext(url)[1]) if filename else url
+        return url, filename or None
 
 
 class ImagevenueImageExtractor(ImagehostImageExtractor):
@@ -185,6 +175,11 @@ class ImagevenueImageExtractor(ImagehostImageExtractor):
     pattern = (r"(?:https?://)?((?:www|img\d+)\.imagevenue\.com"
                r"/([A-Z0-9]{8,10}|view/.*|img\.php\?.*))")
     example = "https://www.imagevenue.com/ME123456789"
+
+    @property
+    @memcache(maxage=3*3600)
+    def _cookies(self):
+        return self.request(self.page_url).cookies
 
     def get_info(self, page):
         try:
@@ -210,8 +205,8 @@ class ImagevenueImageExtractor(ImagehostImageExtractor):
 class ImagetwistImageExtractor(ImagehostImageExtractor):
     """Extractor for single images from imagetwist.com"""
     category = "imagetwist"
-    pattern = (r"(?:https?://)?((?:www\.|phun\.)?"
-               r"image(?:twist|haha)\.com/([a-z0-9]{12}))")
+    pattern = (r"(?:https?://)?((?:www\.|phun\.)?image(?:twist|haha)\.com"
+               r"/([a-z0-9]{12}))")
     example = "https://imagetwist.com/123456abcdef/NAME.EXT"
 
     @property
@@ -231,17 +226,35 @@ class ImagetwistGalleryExtractor(ImagehostImageExtractor):
     """Extractor for galleries from imagetwist.com"""
     category = "imagetwist"
     subcategory = "gallery"
-    pattern = (r"(?:https?://)?((?:www\.|phun\.)?"
-               r"image(?:twist|haha)\.com/(p/[^/?#]+/\d+))")
-    example = "https://imagetwist.com/p/USER/12345/NAME"
+    pattern = (r"(?:https?://)?((?:www\.|phun\.)?image(?:twist|haha)\.com/("
+               r"p/[^/?#]+/(\d+)|"
+               r"\?[^#]*\bfld_id=\d+[^#]*&page=\d+))")
+    example = "https://imagetwist.com/p/USER/12345/TITLE"
 
     def items(self):
-        data = {"_extractor": ImagetwistImageExtractor}
-        root = self.page_url[:self.page_url.find("/", 8)]
-        page = self.request(self.page_url).text
-        gallery = text.extr(page, 'class="gallerys', "</div")
-        for path in text.extract_iter(gallery, ' href="', '"'):
-            yield Message.Queue, root + path, data
+        url = self.page_url
+        root = url[:url.find("/", 8)]
+        page = self.request(url).text
+
+        extr = text.extract_from(page)
+        data = {
+            "_extractor"   : ImagetwistImageExtractor,
+            "gallery_title": text.unescape(extr('page_main_title">', "<")),
+            "gallery_id"   : self.groups[2] or extr("&amp;fld_id=", "&"),
+        }
+        del extr
+
+        while True:
+            gallery = text.extr(page, 'class="gallerys', "</div")
+            for path in text.extract_iter(gallery, ' href="', '"'):
+                yield Message.Queue, root + path, data
+
+            pos = page.find("&#187;</a>")
+            if pos < 0:
+                break
+            qs = text.unescape(text.rextr(page, "href='", "'", pos))
+
+            page = self.request(f"{root}/{qs}").text
 
 
 class ImgadultImageExtractor(ImagehostImageExtractor):
@@ -407,7 +420,6 @@ class ImgclickImageExtractor(ImagehostImageExtractor):
     category = "imgclick"
     pattern = r"(?:https?://)?((?:www\.)?imgclick\.net/([^/?#]+))"
     example = "http://imgclick.net/abc123/NAME.EXT.html"
-    _https = False
     _params = "complex"
 
     def get_info(self, page):
@@ -461,8 +473,8 @@ class ImgdriveImageExtractor(ImagehostImageExtractor):
 
     def __init__(self, match):
         path, category, self.token = match.groups()
-        self.page_url = f"https://{path}"
-        self.category = f"img{category}"
+        self.page_url = "https://" + path
+        self.category = "img" + category
         Extractor.__init__(self, match)
 
     def get_info(self, page):
@@ -495,4 +507,29 @@ class SilverpicImageExtractor(ImagehostImageExtractor):
         return {
             "width" : text.parse_int(width),
             "height": text.parse_int(height),
+        }
+
+
+class ImgpvImageExtractor(ImagehostImageExtractor):
+    """Extractor for imgpv.com images"""
+    category = "imgpv"
+    root = "https://imgpv.com"
+    pattern = (r"(?:https?://)?(?:www\.)?imgpv\.com"
+               r"(/([a-z0-9]{10,})/[\S]+\.html)")
+    example = "https://www.imgpv.com/a1b2c3d4f5g6/NAME.EXT.html"
+
+    def get_info(self, page):
+        url, pos = text.extract(page, 'id="img-preview" src="', '"')
+        alt, pos = text.extract(page, 'alt="', '"', pos)
+        return url, text.unescape(alt)
+
+    def metadata(self, page):
+        pos = page.find('class="upinfo">')
+        date, pos = text.extract(page, '<b>', 'by', pos)
+        user, pos = text.extract(page, '>', '<', pos)
+
+        date = date.split()
+        return {
+            "date": self.parse_datetime_iso(f"{date[0][:10]} {date[1]}"),
+            "user": text.unescape(user),
         }

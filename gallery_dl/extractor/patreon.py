@@ -300,8 +300,8 @@ class PatreonExtractor(Extractor):
                 order = "-published_at"
             elif order in {"a", "asc", "r", "reverse"}:
                 order = "published_at"
-            return f"&sort={order}"
-        return f"&sort={sort}" if sort else ""
+            return "&sort=" + order
+        return "&sort=" + sort if sort else ""
 
     def _build_file_generators(self, filetypes):
         if filetypes is None:
@@ -382,8 +382,8 @@ class PatreonCollectionExtractor(PatreonExtractor):
             elif order in {"d", "desc", "r", "reverse"}:
                 # "-collection_order" results in a '400 Bad Request' error
                 order = "-published_at"
-            return f"&sort={order}"
-        return f"&sort={sort}" if sort else ""
+            return "&sort=" + order
+        return "&sort=" + sort if sort else ""
 
 
 class PatreonCreatorExtractor(PatreonExtractor):
@@ -422,7 +422,7 @@ class PatreonCreatorExtractor(PatreonExtractor):
             url = f"{self.root}/user?u={user_id}"
         else:
             url = f"{self.root}/{creator}"
-        page = self.request(url, notfound="creator").text
+        page = self.request(url, notfound=True).text
 
         try:
             data = None
@@ -478,7 +478,7 @@ class PatreonPostExtractor(PatreonExtractor):
 
     def posts(self):
         url = f"{self.root}/posts/{self.groups[0]}"
-        page = self.request(url, notfound="post").text
+        page = self.request(url, notfound=True).text
         bootstrap = self._extract_bootstrap(page)
 
         try:

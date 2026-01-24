@@ -95,7 +95,7 @@ class FuraffinityExtractor(Extractor):
 
         if self._new_layout:
             data["tags"] = text.split_html(extr(
-                'class="tags-row">', '</section>'))
+                "<h3>Keywords</h3>", "</section>"))
             data["scraps"] = (extr(' submissions">', "<") == "Scraps")
             data["title"] = text.unescape(extr("<h2><p>", "</p></h2>"))
             data["artist_url"] = extr('title="', '"').strip()
@@ -168,8 +168,10 @@ class FuraffinityExtractor(Extractor):
                 return
             num += 1
 
-    def _pagination_favorites(self):
+    def _pagination_favorites(self, start=None):
         path = f"/favorites/{self.user}/"
+        if start is not None:
+            path += start
 
         while path:
             page = self.request(self.root + path).text
@@ -231,7 +233,7 @@ class FuraffinityExtractor(Extractor):
 class FuraffinityGalleryExtractor(FuraffinityExtractor):
     """Extractor for a furaffinity user's gallery"""
     subcategory = "gallery"
-    pattern = rf"{BASE_PATTERN}/gallery/([^/?#]+)(?:$|/(?!folder/))"
+    pattern = BASE_PATTERN + r"/gallery/([^/?#]+)(?:$|/(?!folder/))"
     example = "https://www.furaffinity.net/gallery/USER/"
 
     def posts(self):
@@ -243,7 +245,7 @@ class FuraffinityFolderExtractor(FuraffinityExtractor):
     subcategory = "folder"
     directory_fmt = ("{category}", "{user!l}",
                      "Folders", "{folder_id}{folder_name:? //}")
-    pattern = rf"{BASE_PATTERN}/gallery/([^/?#]+)/folder/(\d+)(?:/([^/?#]+))?"
+    pattern = BASE_PATTERN + r"/gallery/([^/?#]+)/folder/(\d+)(?:/([^/?#]+))?"
     example = "https://www.furaffinity.net/gallery/USER/folder/12345/FOLDER"
 
     def metadata(self):
@@ -260,7 +262,7 @@ class FuraffinityScrapsExtractor(FuraffinityExtractor):
     """Extractor for a furaffinity user's scraps"""
     subcategory = "scraps"
     directory_fmt = ("{category}", "{user!l}", "Scraps")
-    pattern = rf"{BASE_PATTERN}/scraps/([^/?#]+)"
+    pattern = BASE_PATTERN + r"/scraps/([^/?#]+)"
     example = "https://www.furaffinity.net/scraps/USER/"
 
     def posts(self):
@@ -271,11 +273,11 @@ class FuraffinityFavoriteExtractor(FuraffinityExtractor):
     """Extractor for a furaffinity user's favorites"""
     subcategory = "favorite"
     directory_fmt = ("{category}", "{user!l}", "Favorites")
-    pattern = rf"{BASE_PATTERN}/favorites/([^/?#]+)"
+    pattern = BASE_PATTERN + r"/favorites/([^/?#]+)(/\d+/(?:next|prev))?"
     example = "https://www.furaffinity.net/favorites/USER/"
 
     def posts(self):
-        return self._pagination_favorites()
+        return self._pagination_favorites(self.groups[1])
 
     def _parse_post(self, post_id):
         if post := FuraffinityExtractor._parse_post(self, post_id):
@@ -287,7 +289,7 @@ class FuraffinitySearchExtractor(FuraffinityExtractor):
     """Extractor for furaffinity search results"""
     subcategory = "search"
     directory_fmt = ("{category}", "Search", "{search}")
-    pattern = rf"{BASE_PATTERN}/search(?:/([^/?#]+))?/?[?&]([^#]+)"
+    pattern = BASE_PATTERN + r"/search(?:/([^/?#]+))?/?[?&]([^#]+)"
     example = "https://www.furaffinity.net/search/?q=QUERY"
 
     def __init__(self, match):
@@ -306,7 +308,7 @@ class FuraffinitySearchExtractor(FuraffinityExtractor):
 class FuraffinityPostExtractor(FuraffinityExtractor):
     """Extractor for individual posts on furaffinity"""
     subcategory = "post"
-    pattern = rf"{BASE_PATTERN}/(?:view|full)/(\d+)"
+    pattern = BASE_PATTERN + r"/(?:view|full)/(\d+)"
     example = "https://www.furaffinity.net/view/12345/"
 
     def posts(self):
@@ -317,12 +319,12 @@ class FuraffinityPostExtractor(FuraffinityExtractor):
 
 class FuraffinityUserExtractor(Dispatch, FuraffinityExtractor):
     """Extractor for furaffinity user profiles"""
-    pattern = rf"{BASE_PATTERN}/user/([^/?#]+)"
+    pattern = BASE_PATTERN + r"/user/([^/?#]+)"
     example = "https://www.furaffinity.net/user/USER/"
 
     def items(self):
         base = self.root
-        user = f"{self.user}/"
+        user = self.user + "/"
         return self._dispatch_extractors((
             (FuraffinityGalleryExtractor , f"{base}/gallery/{user}"),
             (FuraffinityScrapsExtractor  , f"{base}/scraps/{user}"),
@@ -333,7 +335,7 @@ class FuraffinityUserExtractor(Dispatch, FuraffinityExtractor):
 class FuraffinityFollowingExtractor(FuraffinityExtractor):
     """Extractor for a furaffinity user's watched users"""
     subcategory = "following"
-    pattern = rf"{BASE_PATTERN}/watchlist/by/([^/?#]+)"
+    pattern = BASE_PATTERN + "/watchlist/by/([^/?#]+)"
     example = "https://www.furaffinity.net/watchlist/by/USER/"
 
     def items(self):
@@ -355,7 +357,7 @@ class FuraffinityFollowingExtractor(FuraffinityExtractor):
 class FuraffinitySubmissionsExtractor(FuraffinityExtractor):
     """Extractor for new furaffinity submissions"""
     subcategory = "submissions"
-    pattern = rf"{BASE_PATTERN}(/msg/submissions(?:/[^/?#]+)?)"
+    pattern = BASE_PATTERN + r"(/msg/submissions(?:/[^/?#]+)?)"
     example = "https://www.furaffinity.net/msg/submissions"
 
     def posts(self):
