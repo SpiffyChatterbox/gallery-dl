@@ -859,6 +859,12 @@ Consider all listed sites to potentially be NSFW.
     <td>Posts Images, Search Results, User Profiles</td>
     <td></td>
 </tr>
+<tr id="porn7" title="porn7">
+    <td>Porn7</td>
+    <td>https://porn7.net/</td>
+    <td>Categories, Posts, Search Results</td>
+    <td></td>
+</tr>
 <tr id="pornhub" title="pornhub">
     <td>Pornhub</td>
     <td>https://www.pornhub.com/</td>
