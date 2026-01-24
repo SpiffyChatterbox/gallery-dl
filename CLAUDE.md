@@ -277,7 +277,20 @@ modules = [
 ]
 ```
 
-#### 3.3 Verification
+#### 3.3 Update Supported Sites Documentation
+
+**IMPORTANT:** After adding a new extractor, regenerate the supported sites documentation:
+
+```bash
+cd /media/veracrypt1/dev/gallery-dl
+
+# Regenerate docs/supportedsites.md from extractor modules
+python scripts/supportedsites.py
+```
+
+This script automatically scans all extractors and updates `docs/supportedsites.md` with the new site entry.
+
+#### 3.4 Verification
 ```bash
 # Verify extractor is registered
 python -m gallery_dl --list-extractors | grep sitename
@@ -286,9 +299,25 @@ python -m gallery_dl --list-extractors | grep sitename
 python -m gallery_dl -g "https://sitename.com/..."
 ```
 
-#### 3.4 Test Cases
+#### 3.5 Test Cases
 
-Add test cases to `test/results/sitename.py`:
+**IMPORTANT:** Use `scripts/generate_test_result.py` to generate proper test data instead of writing tests manually.
+
+```bash
+cd /media/veracrypt1/dev/gallery-dl
+
+# Generate test result for a URL (runs the extractor and captures output)
+python scripts/generate_test_result.py "https://sitename.com/gallery/example/"
+
+# With authentication (if site requires login)
+python scripts/generate_test_result.py -a "https://sitename.com/gallery/example/"
+
+# Add a comment to the test
+python scripts/generate_test_result.py -c "Test gallery extraction" "https://..."
+```
+
+The script will output properly formatted test data that you can add to `test/results/sitename.py`:
+
 ```python
 from gallery_dl.extractor import sitename
 
@@ -402,6 +431,8 @@ Before considering an extractor complete:
 - [ ] Removed unnecessary constructors
 - [ ] Added to `__init__.py` in correct alphabetical position
 - [ ] Extractor appears in `--list-extractors`
+- [ ] Ran `python scripts/supportedsites.py` to update docs
+- [ ] Generated test cases using `scripts/generate_test_result.py`
 - [ ] Added test cases to `test/results/`
 
 ### Testing Phase
@@ -569,5 +600,7 @@ An extractor is complete when:
 - Extracts comprehensive metadata
 - Handles edge cases gracefully
 - Works with real URLs (with proper authentication if needed)
+- `docs/supportedsites.md` updated via `scripts/supportedsites.py`
+- Test cases generated using `scripts/generate_test_result.py`
 - Has test cases in `test/results/`
 - Committed to the `custom` branch
