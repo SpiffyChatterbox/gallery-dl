@@ -1087,6 +1087,12 @@ Consider all listed sites to potentially be NSFW.
     <td>Galleries</td>
     <td></td>
 </tr>
+<tr id="topfapgirlspics" title="topfapgirlspics">
+    <td>Topfapgirlspics</td>
+    <td>https://www.topfapgirlspics.com/</td>
+    <td>Categories, Models, Photos</td>
+    <td></td>
+</tr>
 <tr id="toyhouse" title="toyhouse">
     <td>Toyhouse</td>
     <td>https://toyhou.se/</td>
