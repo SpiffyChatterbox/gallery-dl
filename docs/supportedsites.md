@@ -751,6 +751,12 @@ Consider all listed sites to potentially be NSFW.
     <td>Albums</td>
     <td></td>
 </tr>
+<tr id="nudogram" title="nudogram">
+    <td>Nudogram</td>
+    <td>https://nudogram.com/</td>
+    <td>individual Images, Models</td>
+    <td></td>
+</tr>
 <tr id="nudostar" title="nudostar">
     <td>NudoStar.TV</td>
     <td>https://nudostar.tv/</td>
