@@ -114,6 +114,7 @@ modules = [
     "kabeuchi",
     "kaliscan",
     "keenspot",
+    "keep2share",
     "kemono",
     "khinsider",
     "komikcast",
