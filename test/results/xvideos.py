@@ -80,4 +80,17 @@ __tests__ = (
     "#class"   : xvideos.XvideosUserExtractor,
 },
 
+{
+    "#url"     : "https://www.xvideos.com/models/arabella-rose",
+    "#class"   : xvideos.XvideosModelExtractor,
+    "#pattern" : r"ytdl:https://www\.xvideos\.com/video\..+",
+    "#count"   : 5,
+},
+
+{
+    "#url"     : "https://www.xvideos.com/pornstars/lana-rhoades",
+    "#category": ("", "xvideos", "model"),
+    "#class"   : xvideos.XvideosModelExtractor,
+},
+
 )

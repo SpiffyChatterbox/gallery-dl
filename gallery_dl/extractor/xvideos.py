@@ -8,6 +8,8 @@
 
 """Extractors for https://www.xvideos.com/"""
 
+import itertools
+
 from .common import GalleryExtractor, Extractor, Message
 from .. import text, util
 
@@ -119,3 +121,52 @@ class XvideosUserExtractor(XvideosBase, Extractor):
         for gallery in galleries:
             url = base + str(gallery["id"])
             yield Message.Queue, url, gallery
+
+
+class XvideosModelExtractor(XvideosBase, Extractor):
+    """Extractor for model/pornstar videos on xvideos.com"""
+    subcategory = "model"
+    directory_fmt = ("{category}", "{model}")
+    filename_fmt = "{eid}_{title[:80]}.{extension}"
+    archive_fmt = "{eid}"
+    pattern = (r"(?:https?://)?(?:www\.)?xvideos\.com"
+               r"/(models|pornstars)/([^/?#]+)")
+    example = "https://www.xvideos.com/models/NAME"
+
+    def __init__(self, match):
+        Extractor.__init__(self, match)
+        self.namespace = match[1]
+        self.name = match[2]
+
+    def items(self):
+        data = {"model": self.name}
+        yield Message.Directory, "", data
+
+        for video in self._pagination():
+            slug = video["u"].rsplit("/", 1)[-1]
+            url = f"{self.root}/video.{video['eid']}/{slug}"
+            data = {
+                "model": self.name,
+                "title": video.get("tf", ""),
+                "duration": video.get("d", ""),
+                "eid": video["eid"],
+                "extension": "mp4",
+            }
+            yield Message.Url, "ytdl:" + url, data
+
+    def _pagination(self):
+        url_fmt = (f"{self.root}/{self.namespace}"
+                   f"/{self.name}/videos/best/{{}}")
+
+        for page in itertools.count(0):
+            data = self.request(url_fmt.format(page)).json()
+            videos = data.get("videos")
+            if not videos:
+                return
+
+            yield from videos
+
+            total = data.get("nb_videos", 0)
+            per_page = data.get("nb_per_page", 36)
+            if (page + 1) * per_page >= total:
+                return
