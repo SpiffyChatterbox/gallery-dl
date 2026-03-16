@@ -71,3 +71,7 @@ target/
 
 # Database files
 *.sqlite
+
+# AI Development
+CLAUDE.md
+.claude/
