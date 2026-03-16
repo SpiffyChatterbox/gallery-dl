@@ -41,6 +41,7 @@ modules = [
     "boosty",
     "booth",
     "bunkr",
+    "camwhores",
     "catbox",
     "cfake",
     "chevereto",

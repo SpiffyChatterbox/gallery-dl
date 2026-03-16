@@ -181,6 +181,12 @@ Consider all listed sites to potentially be NSFW.
     <td>Albums, Media Files</td>
     <td></td>
 </tr>
+<tr id="camwhores" title="camwhores">
+    <td>Camwhores</td>
+    <td>https://www.camwhores.video/</td>
+    <td>Categories, Search Results, Videos</td>
+    <td></td>
+</tr>
 <tr id="catbox" title="catbox">
     <td>Catbox</td>
     <td>https://catbox.moe/</td>
