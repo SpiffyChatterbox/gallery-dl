@@ -18,6 +18,7 @@ additional extractors and modifications.
 | porn7 | https://porn7.net/ | Video | |
 | porndig | https://www.porndig.com/ | Video/Gallery | |
 | topfapgirlspics | https://www.topfapgirlspics.com/ | Gallery | Yes |
+| viralxxxporn | https://viralxxxporn.com/ | Video/Gallery | |
 | youpic | https://youpic.com/ | Photography | |
 
 ## Modified Upstream Extractors
