@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2015-2025 Mike Fährmann
+# Copyright 2015-2026 Mike Fährmann
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -120,7 +120,7 @@ def nameext_from_url(url, data=None):
 
 
 def nameext_from_name(filename, data=None):
-    """Extract the last part of an URL and fill 'data' accordingly"""
+    """Extract the last part of a file name and fill 'data' accordingly"""
     if data is None:
         data = {}
 
@@ -229,6 +229,9 @@ def extract_from(txt, pos=None, default=""):
         except Exception:
             return default
     return extr
+
+
+extract_urls = re(r"https?://[^\s\"'<>\\]+").findall
 
 
 def parse_unicode_escapes(txt):

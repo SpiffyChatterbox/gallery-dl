@@ -9,8 +9,8 @@
 """Extractors for XenForo forums"""
 
 from .common import BaseExtractor, Message
-from .. import text, exception
-from ..cache import cache
+from .. import text, util
+import binascii
 
 
 class XenforoExtractor(BaseExtractor):
@@ -23,7 +23,7 @@ class XenforoExtractor(BaseExtractor):
 
     def __init__(self, match):
         BaseExtractor.__init__(self, match)
-        self.cookies_domain = "." + self.root.split("/")[2]
+        self.cookies_domain = self.root.split("/")[2]
         self.cookies_names = self.config_instance("cookies") or ("xf_user",)
 
     def items(self):
@@ -37,16 +37,26 @@ class XenforoExtractor(BaseExtractor):
             r'|<div class="bb(?:Image|Media)Wrapper[^>]*?'
             r'data-src="([^"]+".*?) />'
             r'|(?:<a [^>]*?href="|<iframe [^>]*?src="|'
-            r'''onclick="loadMedia\(this, ')([^"']+)'''
+            r'''onclick="loadMedia\(this, ')([^"']+[^<]*?<)'''
             r')'
         ).findall
+
+        embeds = self.config("embeds", True)
+        quotes = self.config("quoted", False)
+        attachments = self.config("attachments", True)
 
         root = self.root
         base = root if (pos := root.find("/", 8)) < 0 else root[:pos]
         for post in self.posts():
-            urls = extract_urls(post["content"])
-            if post["attachments"]:
-                urls.extend(extract_urls(post["attachments"]))
+            content = post["content"]
+            if not quotes:
+                content = self._remove_quotes(content)
+
+            urls = extract_urls(content)
+            if embeds and "data-s9e-mediaembed-iframe=" in content:
+                self._extract_embeds(urls, post, content)
+            if attachments and post["attachments"]:
+                self._extract_attachments(urls, post)
 
             data = {"post": post}
             post["count"] = data["count"] = len(urls)
@@ -62,9 +72,19 @@ class XenforoExtractor(BaseExtractor):
                         continue
                     if ext[0] == "/":
                         if ext[1] == "/":
+                            if "'" in ext:
+                                ext = ext[:ext.find("'")]
                             ext = "https:" + ext
+                        elif ext.startswith("/goto/link-confirmation?"):
+                            params = text.parse_query(text.unescape(ext[24:]))
+                            ext = binascii.a2b_base64(params["url"]).decode()
+                        elif ext.startswith("/redirect/"):
+                            ext = text.unescape(text.extr(
+                                ext, ">", "<").strip())
                         else:
                             continue
+                    elif '"' in ext:
+                        ext = ext[:ext.find('"')]
                     data["num"] += 1
                     data["num_external"] += 1
                     data["type"] = "external"
@@ -93,7 +113,8 @@ class XenforoExtractor(BaseExtractor):
                             continue
                         else:
                             id_last = id
-                    if alt := text.extr(inline, 'alt="', '"'):
+                    if alt := (text.extr(inline, 'alt="', '"') or
+                               text.extr(inline, 'title="', '"')):
                         text.nameext_from_name(alt, data)
                         if not data["extension"]:
                             data["extension"] = name.rpartition("-")[2]
@@ -109,7 +130,7 @@ class XenforoExtractor(BaseExtractor):
 
     def items_media(self, path, pnum, callback=None):
         if (order := self.config("order-posts")) and \
-                order[0] in ("d", "r"):
+                order[0] in {"d", "r"}:
             pages = self._pagination_reverse(path, pnum, callback)
             reverse = True
         else:
@@ -139,6 +160,9 @@ class XenforoExtractor(BaseExtractor):
 
                 url, media = extr_media(
                     base + href, href[href.rfind("/", 0, -1)+1:-1])
+                if url.endswith("/register/full"):
+                    self._warn_auth()
+                    continue
                 if not meta and name:
                     text.nameext_from_name(text.unescape(name), media)
 
@@ -147,21 +171,26 @@ class XenforoExtractor(BaseExtractor):
 
     def request_page(self, url):
         try:
-            return self.request(url)
-        except exception.HttpError as exc:
+            response = self.request(url)
+            if response.history and response.url.endswith("/register"):
+                self._require_auth(response)
+            return response
+        except self.exc.HttpError as exc:
             if exc.status == 403 and b">Log in<" in exc.response.content:
                 self._require_auth(exc.response)
             raise
 
     def login(self):
-        if self.cookies_names and self.cookies_check(self.cookies_names):
+        if self.cookies_names and self.cookies_check(
+                self.cookies_names, subdomains=True):
             return
 
         username, password = self._get_auth_info()
         if username:
-            self.cookies_update(self._login_impl(username, password))
+            return self.cookies_update(self.cache(
+                self._login_impl, username, password,
+                _exp=365*86400, _mem=False))
 
-    @cache(maxage=365*86400, keyarg=1)
     def _login_impl(self, username, password):
         self.log.info("Logging in as %s", username)
 
@@ -178,7 +207,8 @@ class XenforoExtractor(BaseExtractor):
 
         if not response.history:
             err = self._extract_error(response.text)
-            raise exception.AuthenticationError(f'"{err}"')
+            err = f'"{err}"' if err else None
+            raise self.exc.AuthenticationError(err)
 
         return {
             cookie.name: cookie.value
@@ -186,14 +216,14 @@ class XenforoExtractor(BaseExtractor):
             if cookie.domain.endswith(self.cookies_domain)
         }
 
-    def _pagination(self, base, pnum=None, callback=None):
+    def _pagination(self, base, pnum=None, callback=None, params=""):
         base = self.root + base
 
         if pnum is None:
-            url = base + "/"
+            url = f"{base}/{params}"
             pnum = 1
         else:
-            url = f"{base}/page-{pnum}"
+            url = f"{base}/page-{pnum}{params}"
             pnum = None
 
         page = self.request_page(url).text
@@ -205,7 +235,7 @@ class XenforoExtractor(BaseExtractor):
             if pnum is None or "pageNav-jump--next" not in page:
                 return
             pnum += 1
-            page = self.request_page(f"{base}/page-{pnum}").text
+            page = self.request_page(f"{base}/page-{pnum}{params}").text
 
     def _pagination_reverse(self, base, pnum=None, callback=None):
         base = self.root + base
@@ -236,21 +266,34 @@ class XenforoExtractor(BaseExtractor):
 
             page = self.request_page(url).text
 
+    def _remove_quotes(self, content):
+        while "<blockquote" in content:
+            beg = content.index("<blockquote")
+            end = content.index("</blockquote", beg)
+            for _ in range(content.count("<blockquote", beg+11, end)):
+                end = content.index("</blockquote", end+13)
+            content = content[:beg] + content[end+13:]
+        return content
+
     def _extract_error(self, html):
-        return text.unescape(text.extr(
-            html, "blockMessage--error", "</").rpartition(">")[2].strip())
+        if msg := (text.extr(html, "blockMessage--error", "</") or
+                   text.extr(html, '"blockMessage"', "</div>")):
+            return text.unescape(msg[msg.find(">")+1:].strip())
 
     def _parse_post(self, html):
         extr = text.extract_from(html)
 
         post = {
             "author": extr('data-author="', '"'),
-            "id": extr('data-content="post-', '"'),
+            "id": (extr('data-content="post-', '"') or
+                   extr('data-content="profile-post-', '"')),
             "author_url": (extr('itemprop="url" content="', '"') or
                            extr('<a href="', '"')),
             "date": self.parse_datetime_iso(extr('datetime="', '"')),
-            "content": extr('class="message-body',
-                            '<div class="js-selectToQuote'),
+            "content": (extr('class="message-body',
+                             '<div class="js-selectToQuote') or
+                        extr('class="message-body',
+                             '</article>')),
             "attachments": extr('<section class="message-attachments">',
                                 '</section>'),
         }
@@ -318,6 +361,29 @@ class XenforoExtractor(BaseExtractor):
 
         return album
 
+    def _parse_profile(self, page):
+        user = self._extract_jsonld(page)
+        main = user["mainEntity"]
+        url = user.get("url") or main.get("@id") or ""
+        slug, _, id = url[url.rfind("/", 0, -1)+1:-1].rpartition(".")
+
+        self.kwdict["profile"] = profile = {
+            "id"    : main.get("identifier") or id,
+            "url"   : url,
+            "slug"  : text.unquote(slug),
+            "name"  : main.get("name"),
+            "avatar": main.get("image"),
+            "description": main.get("description"),
+            "date"  : self.parse_datetime_iso(user.get("dateCreated")),
+        }
+
+        stats = main.get("interactionStatistic")
+        if isinstance(stats, list):
+            profile["follows"] = stats[0]["userInteractionCount"]
+            profile["likes"] = stats[1]["userInteractionCount"]
+
+        return profile
+
     def _parse_author(self, author, data):
         data["author"] = author.get("name") or ""
         if url := author.get("url"):
@@ -330,6 +396,42 @@ class XenforoExtractor(BaseExtractor):
             data["author_id"] = data["author"][15:]
         return data
 
+    def _extract_attachments(self, urls, post):
+        find = text.re(r"(?s)\shref=[\"'](.+)").search
+        for att in text.extract_iter(post["attachments"], "<li", "</li>"):
+            urls.append((None, find(att)[1], None, None))
+
+    def _extract_embeds(self, urls, post, content):
+        for embed in text.extract_iter(
+                content, "data-s9e-mediaembed-iframe='", "'"):
+            data = {}
+            key = None
+            for value in util.json_loads(embed):
+                if key is None:
+                    key = value
+                else:
+                    data[key] = value
+                    key = None
+
+            src = data.get("src")
+            if not src:
+                self.log.debug(data)
+                continue
+
+            type = data.get("data-s9e-mediaembed")
+            frag = src[src.find("#")+1:]
+            if type == "tiktok":
+                url = "https://www.tiktok.com/@/video/" + frag
+            elif type == "reddit":
+                url = "https://embed.reddit.com/r/" + frag
+            elif type == "imgur":
+                url = "https://imgur.com/" + frag
+            else:
+                self.log.warning("%s: Unsupported media embed type '%s'",
+                                 post["id"], type)
+                continue
+            urls.append((None, None, None, url))
+
     def _extract_media(self, url, file):
         media = {}
         name, _, media["id"] = file.rpartition(".")
@@ -337,7 +439,7 @@ class XenforoExtractor(BaseExtractor):
         return url + "full", media
 
     def _extract_media_ex(self, url, file):
-        page = self.request(url).text
+        page = self.request_page(url).text
 
         schema = self._extract_jsonld(page)
         main = schema["mainEntity"]
@@ -367,9 +469,15 @@ class XenforoExtractor(BaseExtractor):
         return main["contentUrl"], media
 
     def _require_auth(self, response=None):
-        raise exception.AuthRequired(
+        raise self.exc.AuthRequired(
             ("username & password", "authenticated cookies"), None,
             None if response is None else self._extract_error(response.text))
+
+    def _warn_auth(self):
+        try:
+            self._require_auth()
+        except Exception as exc:
+            self.log.warning(exc)
 
     def _validate(self, response):
         if response.status_code == 403 and b">Log in<" in response.content:
@@ -395,13 +503,25 @@ BASE_PATTERN = XenforoExtractor.update({
         "root": "https://celebforum.to",
         "pattern": r"(?:www\.)?celebforum\.to",
     },
+    "titsintops": {
+        "root": "https://titsintops.com/phpBB2",
+        "pattern": r"(?:www\.)?titsintops\.com/phpBB2",
+    },
+    "socialmediagirlsforum": {
+        "root": "https://forums.socialmediagirls.com",
+        "pattern": r"forums\.socialmediagirls\.com",
+    },
+    "blacktowhite": {
+        "root": "https://www.blacktowhite.net",
+        "pattern": r"(?:www\.)?blacktowhite\.net",
+    },
 })
 
 
 class XenforoPostExtractor(XenforoExtractor):
     subcategory = "post"
     pattern = (BASE_PATTERN + r"(/(?:index\.php\?)?threads"
-               r"/[^/?#]+/#?post-|/posts/)(\d+)")
+               r"/[^/?#]+/(?:page-\d+)?#?post-|/posts/)(\d+)")
     example = "https://simpcity.cr/threads/TITLE.12345/post-54321"
 
     def posts(self):
@@ -412,7 +532,7 @@ class XenforoPostExtractor(XenforoExtractor):
 
         pos = page.find(f'data-content="post-{post_id}"')
         if pos < 0:
-            raise exception.NotFoundError("post")
+            raise self.exc.NotFoundError("post")
         html = text.extract(page, "<article ", "<footer", pos-200)[0]
 
         self._parse_thread(page)
@@ -430,8 +550,13 @@ class XenforoThreadExtractor(XenforoExtractor):
         pnum = self.groups[-1]
 
         if (order := self.config("order-posts")) and \
-                order[0] not in ("d", "r"):
-            pages = self._pagination(path, pnum)
+                order[0] not in {"d", "r"}:
+            params = "?order=reaction_score" if order[0] == "s" else ""
+            pages = self._pagination(path, pnum, params=params)
+            reverse = False
+        elif order == "reaction":
+            pages = self._pagination(
+                path, pnum, params="?order=reaction_score")
             reverse = False
         else:
             pages = self._pagination_reverse(path, pnum)
@@ -537,3 +662,34 @@ class XenforoMediaItemExtractor(XenforoExtractor):
                       self._extract_media)(url, self.groups[-1])
         yield Message.Directory, "", media
         yield Message.Url, url, media
+
+
+class XenforoProfileExtractor(XenforoExtractor):
+    subcategory = "profile"
+    directory_fmt = ("{category}", "Profiles", "{profile[name]}")
+    archive_fmt = "{id}"
+    pattern = (BASE_PATTERN + r"(/(?:index\.php\?)?"
+               r"members/[^/?#]+)(?:/page-(\d+))?")
+    example = "https://simpcity.cr/members/USER.123/"
+
+    def posts(self):
+        path = self.groups[-2]
+        pnum = self.groups[-1]
+
+        if (order := self.config("order-posts")) and \
+                order[0] in {"d", "r"}:
+            pages = self._pagination_reverse(path, pnum)
+            reverse = True
+        else:
+            pages = self._pagination(path, pnum)
+            reverse = False
+
+        for page in pages:
+            if "profile" not in self.kwdict:
+                self._parse_profile(page)
+            posts = text.extract_iter(page, "<article ", "<footer")
+            if reverse:
+                posts = list(posts)
+                posts.reverse()
+            for html in posts:
+                yield self._parse_post(html)

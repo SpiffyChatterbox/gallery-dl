@@ -28,6 +28,7 @@ CATEGORY_MAP = {
     "ahottie"        : "AHottie",
     "aibooru"        : "AIBooru",
     "allgirlbooru"   : "All girl",
+    "allporncomic"   : "AllPornComic",
     "ao3"            : "Archive of Our Own",
     "archivedmoe"    : "Archived.Moe",
     "archiveofsins"  : "Archive of Sins",
@@ -41,6 +42,7 @@ CATEGORY_MAP = {
     "baraag"         : "baraag",
     "batoto"         : "BATO.TO",
     "bbc"            : "BBC",
+    "blacktowhite"   : "BlacktoWhite",
     "booth"          : "BOOTH",
     "celebforum"     : "celebforum",
     "cfake"          : "Celebrity Fakes",
@@ -66,7 +68,9 @@ CATEGORY_MAP = {
     "fappic"         : "Fappic.com",
     "fashionnova"    : "Fashion Nova",
     "fikfap"         : "FikFap",
+    "filester"       : "filester.me",
     "fitnakedgirls"  : "FitNakedGirls",
+    "foriio"         : "foriio",
     "furaffinity"    : "Fur Affinity",
     "furry34"        : "Furry 34 com",
     "girlswithmuscle": "Girls with Muscle",
@@ -115,6 +119,7 @@ CATEGORY_MAP = {
     "kabeuchi"       : "かべうち",
     "kaliscan"       : "KaliScan",
     "mangafire"      : "MangaFire",
+    "mangafreak"     : "MangaFreak",
     "mangareader"    : "MangaReader",
     "mangataro"      : "MangaTaro",
     "s3ndpics"       : "S3ND",
@@ -128,6 +133,7 @@ CATEGORY_MAP = {
     "mangafox"       : "Manga Fox",
     "mangahere"      : "Manga Here",
     "mangakakalot"   : "MangaKakalot",
+    "mangatown"      : "MangaTown",
     "manganato"      : "MangaNato",
     "mangapark"      : "MangaPark",
     "mangaread"      : "MangaRead",
@@ -135,6 +141,7 @@ CATEGORY_MAP = {
     "mastodon.social": "mastodon.social",
     "mediawiki"      : "MediaWiki",
     "micmicidol"     : "MIC MIC IDOL",
+    "mixdrop"        : "MixDrop",
     "myhentaigallery": "My Hentai Gallery",
     "myportfolio"    : "Adobe Portfolio",
     "natomanga"      : "MangaNato",
@@ -151,6 +158,7 @@ CATEGORY_MAP = {
     "nudostarforum"  : "NudoStar Forums",
     "okporn"         : "OK.PORN",
     "paheal"         : "Rule 34",
+    "pholder"        : "pholder",
     "photovogue"     : "PhotoVogue",
     "picstate"       : "PicState",
     "pidgiwiki"      : "PidgiWiki",
@@ -171,6 +179,7 @@ CATEGORY_MAP = {
     "rule34hentai"   : "Rule34Hentai",
     "rule34us"       : "Rule 34",
     "rule34vault"    : "R34 Vault",
+    "rule34world"    : "Rule 34 World",
     "rule34xyz"      : "Rule 34 XYZ",
     "sankaku"        : "Sankaku Channel",
     "sankakucomplex" : "Sankaku Complex",
@@ -185,6 +194,7 @@ CATEGORY_MAP = {
     "slickpic"       : "SlickPic",
     "slideshare"     : "SlideShare",
     "smugmug"        : "SmugMug",
+    "socialmediagirlsforum": "Social Media Girls Forums",
     "speakerdeck"    : "Speaker Deck",
     "steamgriddb"    : "SteamGridDB",
     "subscribestar"  : "SubscribeStar",
@@ -198,6 +208,7 @@ CATEGORY_MAP = {
     "thefap"         : "TheFap",
     "thehentaiworld" : "The Hentai World",
     "tiktok"         : "TikTok",
+    "titsintops"     : "Tits In Tops Forum",
     "tmohentai"      : "TMOHentai",
     "tumblrgallery"  : "TumblrGallery",
     "turboimagehost" : "TurboImageHost.com",
@@ -237,6 +248,7 @@ SUBCATEGORY_MAP = {
     "issue"  : "Comic Issues",
     "manga"  : "Manga",
     "media"  : "Media Files",
+    "people" : "People",
     "popular": "Popular Images",
     "recent" : "Recent Images",
     "saved"  : "Saved Posts",
@@ -317,6 +329,9 @@ SUBCATEGORY_MAP = {
         "supporting": "Supported User Feed",
         "redirect"  : "Pixiv Redirects",
     },
+    "fantia": {
+        "supporting": "Supported Creators",
+    },
     "fansly": {
         "lists": "Account Lists",
     },
@@ -385,6 +400,7 @@ SUBCATEGORY_MAP = {
         "folder": "Filesystems",
     },
     "pixiv": {
+        "followed": "Follows",
         "me"  : "pixiv.me Links",
         "pixivision": "pixivision",
         "sketch": "Sketch",
@@ -409,6 +425,7 @@ SUBCATEGORY_MAP = {
         "books": "Book Searches",
     },
     "scrolller": {
+        "user"     : "Reddit Users",
         "following": "Followed Subreddits",
     },
     "sexcom": {
@@ -440,8 +457,8 @@ SUBCATEGORY_MAP = {
     "twitter": {
         "media": "Media Timelines",
         "tweets": "",
-        "replies": "",
         "community": "",
+        "with-replies": "",
         "list-members": "List Members",
     },
     "vk": {
@@ -562,6 +579,7 @@ AUTH_MAP = {
     "poipiku"        : _COOKIES,
     "ponybooru"      : "API Key",
     "reddit"         : _OAUTH,
+    "rule34world"    : "Supported",
     "rule34xyz"      : "Supported",
     "sankaku"        : "Supported",
     "scrolller"      : "Supported",
@@ -710,6 +728,10 @@ def build_extractor_list():
     # add wikifeetx.com
     default["wikifeetx"] = default["wikifeet"]
     domains["wikifeetx"] = "https://www.wikifeetx.com/"
+
+    # add rule34.world
+    default["rule34world"] = default["rule34xyz"]
+    domains["rule34world"] = "https://rule34.world/"
 
     # imgdrive / imgtaxi / imgwallet
     base = categories["imagehost"]

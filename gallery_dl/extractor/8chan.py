@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2022-2025 Mike Fährmann
+# Copyright 2022-2026 Mike Fährmann
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -10,7 +10,6 @@
 
 from .common import Extractor, Message
 from .. import text, dt
-from ..cache import memcache
 import itertools
 
 BASE_PATTERN = r"(?:https?://)?8chan\.(moe|se|cc)"
@@ -25,8 +24,14 @@ class _8chanExtractor(Extractor):
         self.root = "https://8chan." + match[1]
         Extractor.__init__(self, match)
 
-    @memcache()
     def cookies_tos_name(self):
+        domain = "8chan." + self.groups[0]
+        for cookie in self.cookies:
+            if cookie.domain == domain and \
+                    cookie.name.lower().startswith("tos"):
+                self.log.debug("TOS cookie name: %s", cookie.name)
+                return cookie.name
+
         url = self.root + "/.static/pages/confirmed.html"
         headers = {"Referer": self.root + "/.static/pages/disclaimer.html"}
         response = self.request(url, headers=headers, allow_redirects=False)
@@ -37,9 +42,8 @@ class _8chanExtractor(Extractor):
                 return cookie.name
 
         self.log.error("Unable to determin TOS cookie name")
-        return "TOS20241009"
+        return "TOS20250418"
 
-    @memcache()
     def cookies_prepare(self):
         # fetch captcha cookies
         # (necessary to download without getting interrupted)
@@ -74,7 +78,8 @@ class _8chanThreadExtractor(_8chanExtractor):
 
     def items(self):
         _, board, thread = self.groups
-        self.cookies.set(self.cookies_tos_name(), "1", domain=self.root[8:])
+        tos = self.cache(self.cookies_tos_name, _mem=0)
+        self.cookies.set(tos, "1", domain=self.root[8:])
 
         # fetch thread data
         url = f"{self.root}/{board}/res/{thread}."
@@ -84,7 +89,7 @@ class _8chanThreadExtractor(_8chanExtractor):
         thread["_http_headers"] = {"Referer": url + "html"}
 
         try:
-            self.cookies = self.cookies_prepare()
+            self.cookies = self.cache(self.cookies_prepare)
         except Exception as exc:
             self.log.debug("Failed to fetch captcha cookies:  %s: %s",
                            exc.__class__.__name__, exc, exc_info=exc)
@@ -100,6 +105,7 @@ class _8chanThreadExtractor(_8chanExtractor):
             for num, file in enumerate(files):
                 file.update(thread)
                 file["num"] = num
+                file["_http_validate"] = _validate
                 text.nameext_from_url(file["originalName"], file)
                 yield Message.Url, self.root + file["path"], file
 
@@ -112,7 +118,8 @@ class _8chanBoardExtractor(_8chanExtractor):
 
     def items(self):
         _, board, pnum = self.groups
-        self.cookies.set(self.cookies_tos_name(), "1", domain=self.root[8:])
+        tos = self.cache(self.cookies_tos_name)
+        self.cookies.set(tos, "1", domain=self.root[8:])
 
         pnum = text.parse_int(pnum, 1)
         url = f"{self.root}/{board}/{pnum}.json"
@@ -130,3 +137,12 @@ class _8chanBoardExtractor(_8chanExtractor):
                 return
             url = f"{self.root}/{board}/{pnum}.json"
             threads = self.request_json(url)["threads"]
+
+
+def _validate(response):
+    hget = response.headers.get
+    return not (
+        hget("expires") == "0" and
+        hget("content-length") == "166" and
+        hget("content-type") == "image/png"
+    )

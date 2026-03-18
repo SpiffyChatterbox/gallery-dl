@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2017-2025 Mike Fährmann
+# Copyright 2017-2026 Mike Fährmann
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -9,8 +9,9 @@
 """Extractors for https://www.reddit.com/"""
 
 from .common import Extractor, Message
-from .. import text, util, exception
-from ..cache import cache
+from .. import text, util
+
+BASE_PATTERN = r"(?:https?://)?(?:www\.)?(?:\w+\.)?reddit\.com"
 
 
 class RedditExtractor(Extractor):
@@ -55,7 +56,7 @@ class RedditExtractor(Extractor):
             for submission, comments in submissions:
                 urls = []
 
-                if submission:
+                if submission and submission.get("_media", True):
                     submission["comment"] = None
                     submission["date"] = self.parse_timestamp(
                         submission["created_utc"])
@@ -126,7 +127,7 @@ class RedditExtractor(Extractor):
 
                         data = submission.copy()
                         data["comment"] = comment
-                        comment["date"] = self.parse_timestamp(
+                        comment["date"] = data["date"] = self.parse_timestamp(
                             comment["created_utc"])
 
                         if media:
@@ -155,8 +156,7 @@ class RedditExtractor(Extractor):
                     if match := match_submission(url):
                         extra.append(match[1])
                     elif not match_user(url) and not match_subreddit(url):
-                        if previews and "comment" not in data and \
-                                "preview" in data:
+                        if previews and "preview" in data:
                             data["_fallback"] = self._previews(data)
                         yield Message.Queue, text.unescape(url), data
                         if "_fallback" in data:
@@ -215,7 +215,10 @@ class RedditExtractor(Extractor):
 
             if src := data.get("s"):
                 if url := src.get("u") or src.get("gif") or src.get("mp4"):
-                    yield url.partition("?")[0].replace("/preview.", "/i.", 1)
+                    if "//external" not in url:
+                        url = url.partition("?")[0].replace(
+                            "/preview.", "/i.", 1)
+                    yield url
                 else:
                     self.log.error(
                         "embed %s: unable to fetch download URL for item %s",
@@ -272,7 +275,7 @@ class RedditExtractor(Extractor):
 class RedditSubredditExtractor(RedditExtractor):
     """Extractor for URLs from subreddits on reddit.com"""
     subcategory = "subreddit"
-    pattern = (r"(?:https?://)?(?:\w+\.)?reddit\.com"
+    pattern = (BASE_PATTERN +
                r"(/r/[^/?#]+(?:/([a-z]+))?)/?(?:\?([^#]*))?(?:$|#)")
     example = "https://www.reddit.com/r/SUBREDDIT/"
 
@@ -292,43 +295,64 @@ class RedditSubredditExtractor(RedditExtractor):
 class RedditHomeExtractor(RedditSubredditExtractor):
     """Extractor for submissions from your home feed on reddit.com"""
     subcategory = "home"
-    pattern = (r"(?:https?://)?(?:\w+\.)?reddit\.com"
-               r"((?:/([a-z]+))?)/?(?:\?([^#]*))?(?:$|#)")
+    pattern = BASE_PATTERN + r"((?:/([a-z]+))?)/?(?:\?([^#]*))?(?:$|#)"
     example = "https://www.reddit.com/"
 
 
 class RedditUserExtractor(RedditExtractor):
     """Extractor for URLs from posts by a reddit user"""
     subcategory = "user"
-    pattern = (r"(?:https?://)?(?:\w+\.)?reddit\.com/u(?:ser)?/"
-               r"([^/?#]+(?:/([a-z]+))?)/?(?:\?([^#]*))?$")
+    directory_fmt = ("{category}", "Users", "{user[name]}")
+    pattern = (BASE_PATTERN +
+               r"/u(?:ser)?/([^/?#]+)(/[a-z]+)?/?(?:\?([^#]*))?$")
     example = "https://www.reddit.com/user/USER/"
 
     def __init__(self, match):
-        self.user, sub, params = match.groups()
-        self.params = text.parse_query(params)
-        if sub:
-            self.subcategory += "-" + sub
+        if sub := match[2]:
+            self.subcategory += "-" + sub[1:]
         RedditExtractor.__init__(self, match)
 
     def submissions(self):
-        return self.api.submissions_user(self.user, self.params)
+        username, sub, qs = self.groups
+        username = text.unquote(username)
+        self.kwdict["user"] = user = self.api.user_about(username)
+
+        submissions = self.api.submissions_user(
+            (user.get("name") or username) + (sub or ""), text.parse_query(qs))
+        only = sub not in {"/upvoted", "/downvoted", "/saved"}
+        if self.config("only", only):
+            submissions = self._only(submissions, user)
+        return submissions
+
+    def _only(self, submissions, user):
+        try:
+            uid = "t2_" + user["id"]
+        except Exception:
+            if user.get("is_suspended"):
+                raise self.exc.NotFoundError("Suspended User", False)
+            raise self.exc.NotFoundError("user")
+        for submission, comments in submissions:
+            if submission and submission.get("author_fullname") != uid:
+                submission["_media"] = False
+            comments = [
+                comment
+                for comment in (comments or ())
+                if comment.get("author_fullname") == uid
+            ]
+            if submission or comments:
+                yield submission, comments
 
 
 class RedditSubmissionExtractor(RedditExtractor):
     """Extractor for URLs from a submission on reddit.com"""
     subcategory = "submission"
     pattern = (r"(?:https?://)?(?:"
-               r"(?:\w+\.)?reddit\.com/(?:(?:(?:r|u|user)/[^/?#]+/)?"
+               r"(?:www\.)?(?:\w+\.)?reddit\.com/(?:(?:(?:r|u|user)/[^/?#]+/)?"
                r"comments|gallery)|redd\.it)/([a-z0-9]+)")
     example = "https://www.reddit.com/r/SUBREDDIT/comments/id/"
 
-    def __init__(self, match):
-        RedditExtractor.__init__(self, match)
-        self.submission_id = match[1]
-
     def submissions(self):
-        return (self.api.submission(self.submission_id),)
+        return (self.api.submission(self.groups[0]),)
 
 
 class RedditImageExtractor(Extractor):
@@ -362,9 +386,7 @@ class RedditRedirectExtractor(Extractor):
     """Extractor for personalized share URLs produced by the mobile app"""
     category = "reddit"
     subcategory = "redirect"
-    pattern = (r"(?:https?://)?(?:"
-               r"(?:\w+\.)?reddit\.com/(?:(r|u|user)/([^/?#]+)))"
-               r"/s/([a-zA-Z0-9]{10})")
+    pattern = BASE_PATTERN + r"/(?:(r|u|user)/([^/?#]+))/s/([a-zA-Z0-9]{10})"
     example = "https://www.reddit.com/r/SUBREDDIT/s/abc456GHIJ"
 
     def items(self):
@@ -425,8 +447,8 @@ class RedditAPI():
 
             token = config("refresh-token")
             if token is None or token == "cache":
-                key = "#" + self.client_id
-                self.refresh_token = _refresh_token_cache(key)
+                self.refresh_token = extractor._cache(
+                    _refresh_token_cache, "#"+self.client_id, _mem=False)
             else:
                 self.refresh_token = token
 
@@ -449,9 +471,9 @@ class RedditAPI():
         endpoint = subreddit + "/.json"
         return self._pagination(endpoint, params)
 
-    def submissions_user(self, user, params):
+    def submissions_user(self, username, params):
         """Collect all (submission, comments)-tuples posted by a user"""
-        endpoint = "/user/" + user + "/.json"
+        endpoint = f"/user/{username}/.json"
         return self._pagination(endpoint, params)
 
     def morechildren(self, link_id, children):
@@ -468,16 +490,20 @@ class RedditAPI():
             data = self._call(endpoint, params)["json"]
             for thing in data["data"]["things"]:
                 if thing["kind"] == "more":
-                    children.extend(thing["data"]["children"])
+                    if more := thing["data"].get("children"):
+                        children.extend(more)
                 else:
                     yield thing["data"]
 
+    def user_about(self, username):
+        endpoint = f"/user/{username}/about.json"
+        return self._call(endpoint, {})["data"]
+
     def authenticate(self):
         """Authenticate the application by requesting an access token"""
-        self.headers["Authorization"] = \
-            self._authenticate_impl(self.refresh_token)
+        self.headers["Authorization"] = self.extractor.cache(
+            self._authenticate_impl, self.refresh_token, _exp=3600, _mem=False)
 
-    @cache(maxage=3600, keyarg=1)
     def _authenticate_impl(self, refresh_token=None):
         """Actual authenticate implementation"""
         url = "https://www.reddit.com/api/v1/access_token"
@@ -501,7 +527,7 @@ class RedditAPI():
 
         if response.status_code != 200:
             self.log.debug("Server response: %s", data)
-            raise exception.AuthenticationError(
+            raise self.extractor.exc.AuthenticationError(
                 f"\"{data.get('error')}: {data.get('message')}\"")
         return "Bearer " + data["access_token"]
 
@@ -531,16 +557,17 @@ class RedditAPI():
             try:
                 data = response.json()
             except ValueError:
-                raise exception.AbortExtraction(
+                raise self.extractor.exc.AbortExtraction(
                     text.remove_html(response.text))
 
             if "error" in data:
+                exc = self.extractor.exc
                 if data["error"] == 403:
-                    raise exception.AuthorizationError()
+                    raise exc.AuthorizationError()
                 if data["error"] == 404:
-                    raise exception.NotFoundError()
+                    raise exc.NotFoundError(self.extractor.subcategory)
                 self.log.debug(data)
-                raise exception.AbortExtraction(data.get("message"))
+                raise exc.AbortExtraction(data.get("message"))
             return data
 
     def _pagination(self, endpoint, params):
@@ -568,7 +595,7 @@ class RedditAPI():
                         if post["num_comments"] and self.comments:
                             try:
                                 yield self.submission(post["id"])
-                            except exception.AuthorizationError:
+                            except self.extractor.exc.AuthorizationError:
                                 pass
                         else:
                             yield post, ()
@@ -604,7 +631,6 @@ class RedditAPI():
         return util.bdecode(sid, "0123456789abcdefghijklmnopqrstuvwxyz")
 
 
-@cache(maxage=36500*86400, keyarg=0)
 def _refresh_token_cache(token):
     if token and token[0] == "#":
         return None

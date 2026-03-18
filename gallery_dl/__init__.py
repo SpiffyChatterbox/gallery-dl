@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2014-2025 Mike Fährmann
+# Copyright 2014-2026 Mike Fährmann
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
 # published by the Free Software Foundation.
 
+import os
 import sys
 import logging
 from . import version, config, option, output, extractor, job, util, exception
@@ -25,10 +26,17 @@ def main():
         log = output.initialize_logging(args.loglevel)
 
         # configuration
+        if args.config_type:
+            try:
+                config.default(args.config_type)
+            except Exception as exc:
+                config.log.error(exc)
         if args.config_load:
             config.load()
+        if args.configs_extra:
+            config.load(args.configs_extra, strict=True)
         if args.configs_json:
-            config.load(args.configs_json, strict=True)
+            config.load(args.configs_json, strict=True, loads=util.json_loads)
         if args.configs_yaml:
             import yaml
             config.load(args.configs_yaml, strict=True, loads=yaml.safe_load)
@@ -56,9 +64,9 @@ def main():
         if args.postprocessors:
             config.set((), "postprocessors", args.postprocessors)
         if args.abort:
-            config.set((), "skip", f"abort:{args.abort}")
+            config.set((), "skip", "abort:" + args.abort)
         if args.terminate:
-            config.set((), "skip", f"terminate:{args.terminate}")
+            config.set((), "skip", "terminate:" + args.terminate)
         if args.cookies_from_browser:
             browser, _, profile = args.cookies_from_browser.partition(":")
             browser, _, keyring = browser.partition("+")
@@ -160,17 +168,95 @@ def main():
 
             log.debug("Configuration Files %s", config._files)
 
-        if args.clear_cache:
+        if args.cache_file:
+            config.set(("cache",), "file", args.cache_file)
+
+        if args.cache_status:
+            from . import cache, text
+            from collections import defaultdict
+
+            path = cache.path()
+            rows = cache.get("ALL")
+            if rows is None:
+                return cache.error()
+
+            try:
+                size = os.stat(path).st_size
+            except Exception:
+                size = 0
+
+            cnts = defaultdict(int)
+            for row in rows:
+                key = row[0].split(".")
+                if key[2] == "utils":
+                    key = key[3].partition("_")[0]
+                elif key[1] == "oauth":
+                    key = text.extr(key[2], "'", "'")
+                else:
+                    key = key[2]
+                cnts[key] += 1
+                cnts["Total"] += 1
+
+            key_max = 0
+            cnt_max = len(str(cnts["Total"]))
+            for key in cnts:
+                if key_max < (key_len := len(key)):
+                    key_max = key_len
+            if key_max > 24:
+                key_max = 24
+
+            write = sys.stdout.write
+            write(f"""\
+File:
+  {cache.path()}
+Size:
+  {util.format_value(size)}
+Entries:
+""")
+            for key, cnt in sorted(cnts.items(), key=lambda i: (-i[1], i[0])):
+                write(f"  {key}{' ' * (key_max-len(key))}: {cnt:>{cnt_max}}\n")
+
+            return 0
+
+        if args.cache_show:
             from . import cache
-            log = logging.getLogger("cache")
-            cnt = cache.clear(args.clear_cache)
+            rows = cache.get(args.cache_show)
+            if rows is None:
+                return cache.error()
+            import pickle
+            cut = 2 if args.cache_show in {"ALL", "EXP", "VAL"} else 3
+            for key, value, expires in rows:
+                try:
+                    value = util.json_dumps(pickle.loads(value))
+                except Exception:
+                    value = "<Invalid Value>"
+                expires = f" ({expires})" if expires else ""
+                key = ".".join(key.split(".")[cut:])
+                sys.stdout.write(f"{key}{expires}:\n  {value}\n\n")
+            return 0
 
+        if args.cache_clear:
+            from . import cache
+            cnt = cache.clear(args.cache_clear)
             if cnt is None:
-                log.error("Database file not available")
-                return 1
+                return cache.error()
 
-            log.info("Deleted %d entr%s from '%s'",
-                     cnt, "y" if cnt == 1 else "ies", cache._path())
+            cache.log.info("Deleted %d entr%s from '%s'",
+                           cnt, "y" if cnt == 1 else "ies", cache.path())
+            return 0
+
+        if args.cache_vacuum:
+            from . import cache
+            if (db := cache.database()) is None:
+                return cache.error()
+            path = cache.path()
+            before = os.stat(path).st_size
+            cache.log.info("Running 'VACUUM'")
+            db.execute("VACUUM")
+            after = os.stat(path).st_size
+            if before - after:
+                cache.log.info("Reduced database size by %s bytes",
+                               util.format_value(before - after))
             return 0
 
         if args.config:
@@ -209,7 +295,6 @@ def main():
             sources = config.get(("extractor",), "module-sources")
 
         if sources:
-            import os
             modules = []
 
             for source in sources:
@@ -542,11 +627,14 @@ class InputManager():
 
     def _rewrite(self):
         url, path, action, indicies = self._item
+        path_tmp = path + ".tmp"
         lines = self.files[path]
         action(lines, indicies)
+
         try:
-            with open(path, "w", encoding="utf-8") as fp:
+            with open(path_tmp, "w", encoding="utf-8") as fp:
                 fp.writelines(lines)
+            os.replace(path_tmp, path)
         except Exception as exc:
             self.log.warning(
                 "Unable to update '%s' (%s: %s)",

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # Copyright 2018-2020 Leonardo Taccari
-# Copyright 2018-2025 Mike Fährmann
+# Copyright 2018-2026 Mike Fährmann
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -10,8 +10,7 @@
 """Extractors for https://www.instagram.com/"""
 
 from .common import Extractor, Message, Dispatch
-from .. import text, util, exception
-from ..cache import cache, memcache
+from .. import text, util
 import itertools
 import binascii
 
@@ -51,10 +50,13 @@ class InstagramExtractor(Extractor):
         else:
             self.api = InstagramRestAPI(self)
 
-        self._warn_video = True if self.config("warn-videos", True) else False
+        self._static_video = \
+            True if self.config("static-videos", True) else False
+        self._warn_video = \
+            True if self.config("warn-videos", True) else False
         self._warn_image = (
             9 if not (wi := self.config("warn-images", True)) else
-            1 if wi in ("all", "both") else
+            1 if wi in {"all", "both"} else
             0)
 
     def items(self):
@@ -70,7 +72,7 @@ class InstagramExtractor(Extractor):
         max_posts = self.config("max-posts")
 
         order = self.config("order-files")
-        reverse = order[0] in ("r", "d") if order else False
+        reverse = order[0] in {"r", "d"} if order else False
 
         posts = self.posts()
         if max_posts:
@@ -122,8 +124,8 @@ class InstagramExtractor(Extractor):
     def posts(self):
         return ()
 
-    def finalize(self):
-        if self._cursor:
+    def finalize(self, status):
+        if status and self._cursor:
             self.log.info("Use '-o cursor=%s' to continue downloading "
                           "from the current position", self._cursor)
 
@@ -143,7 +145,7 @@ class InstagramExtractor(Extractor):
                 page = None
 
             if page is not None:
-                raise exception.AbortExtraction(
+                raise self.exc.AbortExtraction(
                     f"HTTP redirect to {page} page ({url.partition('?')[0]})")
 
         www_claim = response.headers.get("x-ig-set-www-claim")
@@ -161,9 +163,16 @@ class InstagramExtractor(Extractor):
 
         username, password = self._get_auth_info()
         if username:
-            return self.cookies_update(_login_impl(self, username, password))
+            return self.cookies_update(self.cache(
+                self._login_impl, username, password,
+                _exp=90*86400, _mem=False))
 
         self._logged_in = False
+
+    def _login_impl(self, username, password):
+        self.log.error("Login with username & password is no longer "
+                       "supported. Use browser cookies instead.")
+        return {}
 
     def _parse_post_rest(self, post):
         if "items" in post:  # story or highlight
@@ -237,6 +246,13 @@ class InstagramExtractor(Extractor):
                 self.log.warning("Missing media in post %s",
                                  data["post_shortcode"])
                 continue
+
+            if not self._static_video and \
+                    (type_orig := item.get("original_media_type")) and \
+                    type_orig == 1 and type_orig != item.get("media_type"):
+                if item.pop("video_versions", None):
+                    item["original_width"] = image["width"]
+                    item["original_height"] = image["height"]
 
             width_orig = item.get("original_width", 0)
             height_orig = item.get("original_height", 0)
@@ -570,7 +586,7 @@ class InstagramTaggedExtractor(InstagramExtractor):
             user = self.api.user_by_id(self.user_id)
         else:
             self.user_id = self.api.user_id(self.item)
-            user = self.api.user_by_name(self.item)
+            user = self.api.user_by_screen_name(self.item)
 
         return {
             "tagged_owner_id" : user["id"],
@@ -678,7 +694,7 @@ class InstagramStoriesExtractor(InstagramExtractor):
                     reel["items"] = (item,)
                     break
             else:
-                raise exception.NotFoundError("story")
+                raise self.exc.NotFoundError("story")
 
         elif self.config("split"):
             reel = reels[0]
@@ -757,7 +773,7 @@ class InstagramInfoExtractor(InstagramExtractor):
         if screen_name.startswith("id:"):
             user = self.api.user_by_id(screen_name[3:])
         else:
-            user = self.api.user_by_name(screen_name)
+            user = self.api.user_by_screen_name(screen_name)
 
         return iter(((Message.Directory, "", user),))
 
@@ -779,7 +795,7 @@ class InstagramAvatarExtractor(InstagramExtractor):
             if user.startswith("id:"):
                 user = self.api.user_by_id(user[3:])
             else:
-                user = self.api.user_by_name(user)
+                user = self.api.user_by_screen_name(user)
                 user["pk"] = user["id"]
             url = user.get("profile_pic_url_hd") or user["profile_pic_url"]
             avatar = {"url": url, "width": 0, "height": 0}
@@ -804,6 +820,17 @@ class InstagramRestAPI():
 
     def __init__(self, extractor):
         self.extractor = extractor
+        self.exc = extractor.exc
+
+        _cache = self.extractor.config("user-cache", True)
+        self._user_cache = True if not _cache or _cache == "memory" else False
+
+        if strategy := self.extractor.config("user-strategy"):
+            if isinstance(strategy, str):
+                strategy = strategy.split(",")
+            self._strategy_uid = strategy
+        else:
+            self._strategy_uid = ("search", "web")
 
     def guide(self, guide_id):
         endpoint = "/v1/guides/web_info/"
@@ -818,9 +845,9 @@ class InstagramRestAPI():
         reel_ids = [hl["id"] for hl in self.highlights_tray(user_id)]
 
         if order := self.extractor.config("order-posts"):
-            if order in ("desc", "reverse"):
+            if order in {"desc", "reverse"}:
                 reel_ids.reverse()
-            elif order in ("id", "id_asc"):
+            elif order in {"id", "id_asc"}:
                 reel_ids.sort(key=lambda r: int(r[10:]))
             elif order == "id_desc":
                 reel_ids.sort(key=lambda r: int(r[10:]), reverse=True)
@@ -847,7 +874,7 @@ class InstagramRestAPI():
         try:
             return self._call(endpoint, params=params)["reels_media"]
         except KeyError:
-            raise exception.AuthRequired("authenticated cookies")
+            raise self.exc.AuthRequired("authenticated cookies")
 
     def reels_tray(self):
         endpoint = "/v1/feed/reels_tray/"
@@ -869,20 +896,89 @@ class InstagramRestAPI():
         }
         return self._pagination_sections(endpoint, data)
 
-    @memcache(keyarg=1)
-    def user_by_name(self, screen_name):
+    def user_by_id(self, user_id):
+        return self.extractor.cache(
+            self._user_by_id_impl, user_id, _mem=self._user_cache)
+
+    def _user_by_id_impl(self, user_id):
+        endpoint = f"/v1/users/{user_id}/info/"
+        try:
+            return self._call(endpoint, notfound="user")["user"]
+        except Exception:
+            raise self.exc.NotFoundError("user")
+
+    def user_by_name(self, username):
+        return self.extractor.cache(
+            self._user_by_name_impl, username, _mem=self._user_cache)
+
+    def _user_by_name_impl(self, username):
         endpoint = "/v1/users/web_profile_info/"
-        params = {"username": screen_name}
+        params = {"username": username}
         try:
             return self._call(
                 endpoint, params=params, notfound="user")["data"]["user"]
-        except KeyError:
-            raise exception.NotFoundError("user")
+        except Exception:
+            raise self.exc.NotFoundError("user")
 
-    @memcache(keyarg=1)
-    def user_by_id(self, user_id):
-        endpoint = f"/v1/users/{user_id}/info/"
-        return self._call(endpoint)["user"]
+    def user_by_search(self, username):
+        return self.extractor.cache(
+            self._user_by_search_impl, username, _mem=self._user_cache)
+
+    def _user_by_search_impl(self, username):
+        url = "https://www.instagram.com/web/search/topsearch/"
+        params = {"query": username}
+
+        name = username.lower()
+        try:
+            for result in self._call(url, params=params)["users"]:
+                user = result["user"]
+                if user["username"].lower() == name:
+                    return user
+        except Exception:
+            pass
+        raise self.exc.NotFoundError("user")
+
+    def user_by_web(self, username):
+        return self.extractor.cache(
+            self._user_by_web_impl, username, _mem=self._user_cache)
+
+    def _user_by_web_impl(self, username):
+        url = "https://www.instagram.com/" + username
+
+        try:
+            headers = {
+                "Accept": "text/html,application/xhtml+xml,"
+                          "application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+                "Accept-Encoding": "gzip, deflate, br, zstd",
+                "Alt-Used": "www.instagram.com",
+                "Connection": "keep-alive",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Priority": "u=0, i",
+            }
+            page = self.extractor.request(url, headers=headers).text
+            if uid := text.extr(page, '"profile_id":"', '"'):
+                return {"id": uid}
+        except Exception:
+            pass
+        raise self.exc.NotFoundError("user")
+
+    def user_by_screen_name(self, screen_name):
+        for strategy in self._strategy_uid:
+            try:
+                if strategy in {"search", "topsearch"}:
+                    return self.user_by_search(screen_name)
+                elif strategy in {"info", "web_profile_info", "api"}:
+                    return self.user_by_name(screen_name)
+                elif strategy in {"web", "webpage"}:
+                    return self.user_by_web(screen_name)
+                else:
+                    self.extractor.log.warning("Invalid strategy %r", strategy)
+            except Exception:
+                self.extractor.log.debug("Failed to get user via %r", strategy)
+        raise self.exc.NotFoundError("user")
 
     def user_id(self, screen_name, check_private=True):
         if screen_name.startswith("id:"):
@@ -890,15 +986,13 @@ class InstagramRestAPI():
                 self.extractor._user = self.user_by_id(screen_name[3:])
             return screen_name[3:]
 
-        user = self.user_by_name(screen_name)
-        if user is None:
-            raise exception.AuthorizationError(
-                "Login required to access this profile")
-        if check_private and user["is_private"] and \
-                not user["followed_by_viewer"]:
+        user = self.user_by_screen_name(screen_name)
+        if check_private and user.get("is_private") and \
+                not user.get("followed_by_viewer", True):
             name = user["username"]
             s = "" if name.endswith("s") else "s"
             self.extractor.log.warning("%s'%s posts are private", name, s)
+
         self.extractor._assign_user(user)
         return user["id"]
 
@@ -945,7 +1039,10 @@ class InstagramRestAPI():
     def _call(self, endpoint, **kwargs):
         extr = self.extractor
 
-        url = "https://www.instagram.com/api" + endpoint
+        if endpoint[0] == "/":
+            url = "https://www.instagram.com/api" + endpoint
+        else:
+            url = endpoint
         kwargs["headers"] = {
             "Accept"          : "*/*",
             "X-CSRFToken"     : extr.csrf_token,
@@ -1049,12 +1146,13 @@ class InstagramGraphqlAPI():
         self._json_dumps = util.json_dumps
 
         api = InstagramRestAPI(extractor)
-        self.user_by_name = api.user_by_name
+        self.user_by_screen_name = api.user_by_screen_name
         self.user_by_id = api.user_by_id
         self.user_id = api.user_id
 
     def _unsupported(self, _=None):
-        raise exception.AbortExtraction("Unsupported with GraphQL API")
+        raise self.extractor.exc.AbortExtraction(
+            "Unsupported with GraphQL API")
 
     def highlights_tray(self, user_id):
         query_hash = "d4d88dc1500312af6f937f7b804c68c3"
@@ -1142,17 +1240,10 @@ class InstagramGraphqlAPI():
             elif not data["edges"]:
                 user = self.extractor.item
                 s = "" if user.endswith("s") else "s"
-                raise exception.AbortExtraction(
+                raise self.exc.AbortExtraction(
                     f"{user}'{s} posts are private")
 
             variables["after"] = extr._update_cursor(info["end_cursor"])
-
-
-@cache(maxage=90*86400, keyarg=1)
-def _login_impl(extr, username, password):
-    extr.log.error("Login with username & password is no longer supported. "
-                   "Use browser cookies instead.")
-    return {}
 
 
 def id_from_shortcode(shortcode):

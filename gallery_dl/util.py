@@ -372,7 +372,9 @@ def expand_path(path):
     if not path:
         return path
     if not isinstance(path, str):
-        path = os.path.join(*path)
+        import logging
+        logging.getLogger("gallery-dl").error(
+            "Non-string paths are no longer supported.")
     return os.path.expandvars(os.path.expanduser(path))
 
 
@@ -677,6 +679,11 @@ class Flags():
 
     def process(self, flag):
         value = self.__dict__[flag]
+        if value is False:  # flag was set to "skip"
+            if flag == "DOWNLOAD":
+                self.DOWNLOAD = None
+                raise exception.StopDownload()
+            return "skip"
         self.__dict__[flag] = None
 
         if value == "abort":
@@ -841,9 +848,7 @@ def import_file(path):
 
 def build_selection_func(value, min=0.0, conv=float):
     if not value:
-        if min:
-            return lambda: min
-        return None
+        return (lambda: min) if min else None
 
     if isinstance(value, str):
         lower, _, upper = value.partition("-")
@@ -851,7 +856,8 @@ def build_selection_func(value, min=0.0, conv=float):
         try:
             lower, upper = value
         except TypeError:
-            lower, upper = value, None
+            lower = value
+            upper = None
     lower = conv(lower)
 
     if upper:
@@ -868,6 +874,38 @@ def build_selection_func(value, min=0.0, conv=float):
 
 
 build_duration_func = build_selection_func
+
+
+def build_duration_func_ex(value):
+    if not value:
+        return None
+    if not isinstance(value, str) or "=" not in value:
+        value = build_duration_func(value)
+        return lambda _: value()
+
+    args, _, value = value.partition("=")
+    type, _, args = args.partition(":")
+    value = build_duration_func(value)
+
+    if "exponential".startswith(type):
+        if not args:
+            return lambda n: value() * (2 ** (n-1))
+        base, _, start = args.partition(":")
+        start, _, max = start.partition(":")
+        start = float(start) if start else 0
+        base = float(base) if base else 2
+        max = int(max) if max else 3600
+        return lambda n: min(start + value() * (base ** (n-1)), max)
+
+    if "linear".startswith(type):
+        if not args:
+            return lambda n: value() * n
+        start, _, max = args.partition(":")
+        start = float(start) if start else 0
+        max = int(max) if max else 3600
+        return lambda n: min(start + value() * n, max)
+
+    raise ValueError("Invalid duration type " + repr(type))
 
 
 def build_extractor_filter(categories, negate=True, special=None):
@@ -997,7 +1035,70 @@ def predicate_filter(expr, target="image"):
     return _pred
 
 
-def predicate_range(ranges, skip=None):
+def predicate_tags(blacklist, negate=False):
+    def _pred(_, kwdict):
+        if not (tags := kwdict.get("tags") or kwdict.get("tag_string")):
+            return True
+
+        if isinstance(tags, str):
+            taglist = tags.split(", ")
+            if len(taglist) < len(tags) / 16:
+                taglist = tags.split(" ")
+            tags = taglist
+        elif isinstance(tags[0], dict):
+            # pixiv "tags": "original"
+            tags = [
+                tag
+                for tagdict in tags
+                for tag in tagdict.values()
+                if isinstance(tag, str)
+            ]
+            tags.sort()
+
+        for tag in tags:
+            if tag in blacklist:
+                return negate
+        return not negate
+
+    if isinstance(blacklist, str):
+        try:
+            with open(expand_path(blacklist)) as fp:
+                blacklist = {t.lower() for tag in fp if (t := tag.strip())}
+        except OSError:
+            blacklist = {tag for tag in
+                         blacklist.replace(" ", "").lower().split(",")}
+    else:
+        blacklist = set(blacklist)
+    return _pred
+
+
+def predicate_date(before, after=None, skip=None):
+    if after is None:
+        if skip is not None and skip(before):
+            return true
+
+        def _pred(_, kwdict):
+            if (date := kwdict.get("date")) and date >= before:
+                return False
+            return True
+
+    elif before is None or after > before or skip is not None and skip(before):
+        def _pred(_, kwdict):
+            if (date := kwdict.get("date")) and date <= after:
+                raise exception.StopExtraction()
+            return True
+
+    else:
+        def _pred(_, kwdict):
+            if not (date := kwdict.get("date")):
+                return True
+            if date <= after:
+                raise exception.StopExtraction()
+            return date < before
+    return _pred
+
+
+def predicate_range(ranges, skip=None, flag=None):
     """Predicate; True if the current index is in the given range(s)"""
     if ranges := predicate_range_parse(ranges):
         # technically wrong for 'step > 2', but good enough for now
@@ -1009,17 +1110,32 @@ def predicate_range(ranges, skip=None):
     else:
         index = upper = 0
 
-    def _pred(_url, _kwdict):
-        nonlocal index
+    if flag is None:
+        def _pred(_url, _kwdict):
+            nonlocal index
 
-        if index >= upper:
-            raise exception.StopExtraction()
-        index += 1
+            if index >= upper:
+                raise exception.StopExtraction()
+            index += 1
 
-        for range in ranges:
-            if index in range:
-                return True
-        return False
+            for range in ranges:
+                if index in range:
+                    return True
+            return False
+    else:
+        def _pred(_url, _kwdict):
+            nonlocal index
+
+            index += 1
+            if index >= upper:
+                if index > upper:
+                    raise exception.StopExtraction()
+                FLAGS.__dict__[flag.upper()] = "stop"
+
+            for range in ranges:
+                if index in range:
+                    return True
+            return False
     return _pred
 
 

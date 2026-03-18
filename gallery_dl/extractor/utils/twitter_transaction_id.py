@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2025 Mike Fährmann
+# Copyright 2025-2026 Mike Fährmann
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -22,8 +22,7 @@ import random
 import hashlib
 import binascii
 import itertools
-from . import text, util
-from .cache import cache
+from ... import text, util
 
 
 class ClientTransaction():
@@ -45,7 +44,8 @@ class ClientTransaction():
                 "Failed to extract 'twitter-site-verification' key")
 
         ondemand_s = text.extr(homepage, '"ondemand.s":"', '"')
-        indices = self._extract_indices(ondemand_s, extractor)
+        indices = extractor.cache(
+            self._extract_indices, ondemand_s, extractor, _mem=False)
         if not indices:
             extractor.log.error("Failed to extract KEY_BYTE indices")
 
@@ -63,7 +63,6 @@ class ClientTransaction():
         end = homepage.find(">", pos)
         return text.extr(homepage[beg:end], 'content="', '"')
 
-    @cache(maxage=36500*86400, keyarg=1)
     def _extract_indices(self, ondemand_s, extractor):
         url = (f"https://abs.twimg.com/responsive-web/client-web"
                f"/ondemand.s.{ondemand_s}a.js")

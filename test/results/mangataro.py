@@ -11,7 +11,7 @@ __tests__ = (
 {
     "#url"     : "https://mangataro.org/read/majo-to-youhei/ch8-356833",
     "#class"   : mangataro.MangataroChapterExtractor,
-    "#pattern" : r"https://bx1\.mangapeak\.me/storage/chapters/b99b2860f0444d924c9446b4ecf1cdad/\d+\.webp",
+    "#pattern" : r"https://(mangataro.yachts|bx1\.mangapeak\.me)/storage/chapters/b99b2860f0444d924c9446b4ecf1cdad/\d+\.webp",
     "#count"   : 22,
 
     "chapter"      : 8,
@@ -47,7 +47,7 @@ __tests__ = (
 {
     "#url"     : "https://mangataro.org/read/sono-akuyaku-kizoku-mama-heroine-ga-sukisugiru-shinshi-na-doryoku-de-saikyou-to-nari-fuguu-na-oshi-chara-tasukemakuru/ch12-2-337633",
     "#class"   : mangataro.MangataroChapterExtractor,
-    "#pattern" : r"https://bx1\.mangapeak\.me/storage/chapters/200aa5d11c6ef1f049a2c68163c3a1d7/\d+\.webp",
+    "#pattern" : r"https://(mangataro.yachts|bx1\.mangapeak\.me)/storage/chapters/200aa5d11c6ef1f049a2c68163c3a1d7/\d+\.webp",
     "#count"   : 13,
 
     "chapter"      : 12,
@@ -106,11 +106,11 @@ __tests__ = (
     "#url"     : "https://mangataro.org/manga/lookism",
     "#class"   : mangataro.MangataroMangaExtractor,
     "#pattern" : mangataro.MangataroChapterExtractor.pattern,
-    "#count"   : 573,
+    "#count"   : range(580, 800),
 
-    "chapter"      : range(1, 573),
+    "chapter"      : range(1, 800),
     "chapter_id"   : int,
-    "chapter_minor": "",
+    "chapter_minor": {"", ".1", ".5"},
     "cover"        : "https://mangataro.org/content/media/208866l.webp",
     "description"  : "<p>Park Hyung Suk has spent all 17 years of his life at the bottom of the food chain. Short, overweight, and unattractive, he is used to being bullied by his classmates and constantly discriminated against for his looks. In an attempt to escape his biggest bully, Lee Tae Sung, he decides to transfer to Seoul’s Jae Won High School, a vocational preparatory school notorious for its liberal education system and carefree students. Days before his transfer, Hyung Suk wakes to find that he is no longer in his usual chubby body, but is instead in a perfect body! Tall, handsome, and beautifully toned, Hyung Suk has become the ideal version of himself. The only problem is that his original body still lays beside him—and when one body falls asleep, he awakens in the other. Now possessing two extremely different bodies, Hyung Suk must learn to navigate his new and much more popular life at J High whilst also solving the mystery of where his second, almost superhuman, body came from. [Written by MAL Rewrite]</p></div><div class=\"mt-6 pt-6 border-t border-neutral-700/30\"><div class=\"flex items-center gap-2 mb-3\"> <svg class=\"w-4 h-4 text-neutral-400\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"> <path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z\" /> </svg><h4 class=\"text-sm font-medium text-neutral-100\">Background</h4></div><div class=\"max-w-none text-neutral-400 text-justify text-xs\"><p>Lookism is originally a webtoon which first volume was officially published in paperbook format by &Book (대원앤북) on May 25, 2017. The series has been serialized in English by LINE Webtoon since June 4, 2017.</p>",
     "genre"        : "Manhwa",
